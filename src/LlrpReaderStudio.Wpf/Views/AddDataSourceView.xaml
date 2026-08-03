@@ -1,0 +1,93 @@
+<UserControl x:Class="LlrpReaderStudio.Views.AddDataSourceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:LlrpReaderStudio.ViewModels"
+             mc:Ignorable="d" d:DesignHeight="600" d:DesignWidth="900"
+             d:DataContext="{d:DesignInstance Type=vm:AddDataSourceViewModel}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#0F172A">
+        <StackPanel Margin="44" MaxWidth="800" HorizontalAlignment="Left">
+            <TextBlock Text="Add Data Source" FontSize="28" FontWeight="Bold" Foreground="#F8FAFC" />
+
+            <TextBlock Text="A data source is a saved LLRP reader endpoint. Adding it registers the endpoint and verifies TCP connectivity on the LLRP port. Inventory starts when you press Play."
+                       TextWrapping="Wrap" Foreground="#94A3B8" FontSize="14" LineHeight="22" Margin="0,12,0,24" />
+
+            <!-- Main Form Card -->
+            <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,0,0,24">
+                <StackPanel>
+                    <!-- Host Name Section -->
+                    <TextBlock Text="Host Name / IP Address:" FontWeight="Bold" FontSize="14" Foreground="#F8FAFC" Margin="0,0,0,8" />
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding HostName, UpdateSourceTrigger=PropertyChanged}" FontSize="14" Padding="10,8" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" BorderThickness="1" />
+                        <Button Grid.Column="1" Content="Scan LLRP Readers" Command="{Binding DiscoverDevicesCommand}" Style="{StaticResource WorkbenchButtonStyle}" Background="#0284C7" Foreground="White" Margin="10,0,0,0" Padding="14,8" />
+                    </Grid>
+
+                    <!-- mDNS Discovered Devices Card List -->
+                    <Border Visibility="{Binding IsDiscoveringPopupOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Background="#0F172A" BorderBrush="#38BDF8" BorderThickness="1" Padding="16" Margin="0,0,0,20" CornerRadius="6">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,10">
+                                <Button Content="✕ Close" Command="{Binding ClosePopupCommand}" DockPanel.Dock="Right" Background="Transparent" BorderThickness="0" Foreground="#EF4444" FontWeight="Bold" Cursor="Hand" />
+                                <TextBlock Text="Discovered LLRP Readers (mDNS _llrp._tcp.local.):" FontWeight="Bold" Foreground="#38BDF8" FontSize="13" />
+                            </DockPanel>
+
+                            <ProgressBar IsIndeterminate="{Binding IsDiscovering}" Height="4" Margin="0,0,0,10" Foreground="#38BDF8" Visibility="{Binding IsDiscovering, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                            <ListBox ItemsSource="{Binding DiscoveredDevices}" MaxHeight="220" Background="#1E293B" BorderBrush="#334155">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#1E293B" Padding="10,8" Margin="0,2" CornerRadius="4" BorderBrush="#334155" BorderThickness="1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" Foreground="#F8FAFC" FontSize="13" />
+                                                    <TextBlock Text="{Binding DisplayEndpoint, StringFormat='Endpoint / IP: {0}'}" Foreground="#38BDF8" FontSize="11" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Content="Select Reader" Command="{Binding DataContext.SelectDiscoveredDeviceCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Style="{StaticResource WorkbenchButtonStyle}" Padding="12,5" FontSize="11" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="Enter a hostname or IP address for a reader that exposes the LLRP service. Default LLRP port is 5084." Foreground="#64748B" FontSize="12" Margin="0,0,0,20" />
+
+                    <!-- Nickname Section -->
+                    <TextBlock Text="Nickname: (optional)" FontWeight="Bold" FontSize="14" Foreground="#F8FAFC" Margin="0,0,0,8" />
+                    <TextBox Text="{Binding Nickname, UpdateSourceTrigger=PropertyChanged}" FontSize="14" Padding="10,8" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" BorderThickness="1" Margin="0,0,0,24" />
+
+                    <!-- LLRP Port Expander -->
+                    <Expander Background="#0F172A" Foreground="#38BDF8" Header="  LLRP PORT" FontWeight="Bold" FontSize="13" Margin="0,0,0,24">
+                        <Border Background="#1E293B" Padding="16" Margin="0,8,0,0" CornerRadius="4" BorderBrush="#334155" BorderThickness="1">
+                            <StackPanel>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="LLRP Port:" VerticalAlignment="Center" FontWeight="Bold" Foreground="#F8FAFC" />
+                                    <TextBox Grid.Column="1" Text="{Binding PortText}" Padding="6" Width="100" HorizontalAlignment="Left" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Expander>
+
+                    <!-- Action Buttons -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="ADD DATA SOURCE" Command="{Binding SubmitCommand}" Style="{StaticResource WorkbenchButtonStyle}" Background="#0284C7" Foreground="White" Padding="20,10" FontSize="13" Margin="0,0,12,0" />
+                        <Button Content="CANCEL" Command="{Binding CancelCommand}" Style="{StaticResource WorkbenchButtonStyle}" Padding="20,10" FontSize="13" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,34 @@
+<UserControl x:Class="LlrpReaderStudio.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:LlrpReaderStudio.ViewModels"
+             mc:Ignorable="d" d:DesignHeight="600" d:DesignWidth="900"
+             d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#0F172A">
+        <StackPanel Margin="36" MaxWidth="850" HorizontalAlignment="Left">
+            <TextBlock Text="Settings Workspace" FontSize="28" FontWeight="Bold" Foreground="#F8FAFC" />
+            <TextBlock Text="{Binding SettingsOrigin}" Foreground="#94A3B8" Margin="0,6,0,16" />
+
+            <WrapPanel Margin="0,0,0,20">
+                <Button Content="QUERY DEVICE" Command="{Binding QuerySettingsCommand}" Style="{StaticResource WorkbenchButtonStyle}" Margin="0,0,10,0" />
+                <Button Content="LOAD SDK DEFAULTS" Command="{Binding DefaultSettingsCommand}" Style="{StaticResource WorkbenchButtonStyle}" Margin="0,0,10,0" />
+                <Button Content="APPLY DRAFT" Command="{Binding ApplySettingsCommand}" Style="{StaticResource WorkbenchButtonStyle}" Background="#0284C7" Foreground="White" />
+            </WrapPanel>
+
+            <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1" Padding="24" CornerRadius="8">
+                <StackPanel>
+                    <TextBlock Text="Managed Inventory Intent" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" />
+                    <CheckBox Content="Deploy managed inventory resource with Apply" IsChecked="{Binding IncludeInventoryDraft}" Margin="0,12" Foreground="#F8FAFC" />
+                    <UniformGrid Columns="4" Margin="0,10">
+                        <StackPanel Margin="0,0,6,0"><TextBlock Text="Antennas (CSV)" Foreground="#94A3B8" /><TextBox Text="{Binding Antennas}" Padding="6" Margin="0,4,0,0" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" /></StackPanel>
+                        <StackPanel Margin="3,0,3,0"><TextBlock Text="Gen2 session" Foreground="#94A3B8" /><TextBox Text="{Binding Session}" Padding="6" Margin="0,4,0,0" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" /></StackPanel>
+                        <StackPanel Margin="3,0,3,0"><TextBlock Text="Population" Foreground="#94A3B8" /><TextBox Text="{Binding Population}" Padding="6" Margin="0,4,0,0" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" /></StackPanel>
+                        <StackPanel Margin="6,0,0,0"><TextBlock Text="Report every N" Foreground="#94A3B8" /><TextBox Text="{Binding ReportEvery}" Padding="6" Margin="0,4,0,0" Background="#0F172A" Foreground="#F8FAFC" BorderBrush="#334155" /></StackPanel>
+                    </UniformGrid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

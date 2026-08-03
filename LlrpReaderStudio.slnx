@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LlrpReaderStudio.Core/LlrpReaderStudio.Core.csproj" />
+    <Project Path="src/LlrpReaderStudio.Infrastructure/LlrpReaderStudio.Infrastructure.csproj" />
+    <Project Path="src/LlrpReaderStudio.Wpf/LlrpReaderStudio.Wpf.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LlrpReaderStudio.Core.Tests/LlrpReaderStudio.Core.Tests.csproj" />
+  </Folder>
+</Solution>

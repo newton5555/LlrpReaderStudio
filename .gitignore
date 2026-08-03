@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+coverage/
+.vs/
+.vscode/
+*.user
+*.suo
