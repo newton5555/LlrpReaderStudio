@@ -5,7 +5,6 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using FontAwesome.Sharp;
 using LlrpReaderStudio.Core;
 using LlrpReaderStudio.Models;
 using LlrpSdk;
@@ -59,10 +58,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         NavigationItems =
         [
-            new NavigationItem { Title = "寻卡 / Inventory", PageName = "Inventory", Icon = IconChar.Tags, IconBrush = CreateBrush("#10B981"), ViewModel = InventoryVM },
-            new NavigationItem { Title = "Tag Memory", PageName = "TagMemory", Icon = IconChar.PenToSquare, IconBrush = CreateBrush("#F97316"), ViewModel = TagMemoryVM },
-            new NavigationItem { Title = "Tag Logging & Settings", PageName = "Settings", Icon = IconChar.Sliders, IconBrush = CreateBrush("#8B5CF6"), ViewModel = SettingsVM },
-            new NavigationItem { Title = "About Studio", PageName = "About", Icon = IconChar.InfoCircle, IconBrush = CreateBrush("#38BDF8"), ViewModel = AboutVM },
+            new NavigationItem { Title = "寻卡 / Inventory", PageName = "Inventory", Glyph = "#", IconBrush = CreateBrush("#10B981"), ViewModel = InventoryVM },
+            new NavigationItem { Title = "Tag Memory", PageName = "TagMemory", Glyph = "M", IconBrush = CreateBrush("#F97316"), ViewModel = TagMemoryVM },
+            new NavigationItem { Title = "Tag Logging & Settings", PageName = "Settings", Glyph = "S", IconBrush = CreateBrush("#8B5CF6"), ViewModel = SettingsVM },
+            new NavigationItem { Title = "About Studio", PageName = "About", Glyph = "i", IconBrush = CreateBrush("#38BDF8"), ViewModel = AboutVM },
         ];
 
         selectedNavigationItem = NavigationItems[0];

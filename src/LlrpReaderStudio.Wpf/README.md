@@ -14,7 +14,7 @@ Implemented in this baseline:
 - tag logging and settings workspace.
 
 This WPF app deliberately excludes IoT-device management, RShell, RDD/FDD capture,
-application-side Tags of Interest, and xArray/xSpan spatial Location/Direction showcases.
+application-side Tags of Interest, and spatial reader capabilities.
 
 Run on Windows:
 

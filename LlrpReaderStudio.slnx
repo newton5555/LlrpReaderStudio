@@ -4,6 +4,19 @@
     <Project Path="src/LlrpReaderStudio.Infrastructure/LlrpReaderStudio.Infrastructure.csproj" />
     <Project Path="src/LlrpReaderStudio.Wpf/LlrpReaderStudio.Wpf.csproj" />
   </Folder>
+  <Folder Name="/external/LLRPCSharp/">
+    <Project Path="../LLRPCSharp/src/LlrpNet/LlrpNet.Core/LlrpNet.Core.csproj" />
+    <Project Path="../LLRPCSharp/src/LlrpNet/LlrpNet.Protocol/LlrpNet.Protocol.csproj" />
+    <Project Path="../LLRPCSharp/src/LlrpNet/LlrpNet.Protocol.Impinj/LlrpNet.Protocol.Impinj.csproj" />
+    <Project Path="../LLRPCSharp/src/LlrpNet/LlrpNet.ProtocolGenerator/LlrpNet.ProtocolGenerator.csproj" />
+    <Project Path="../LLRPCSharp/src/LlrpNet/LlrpNet.ProtocolGenerator.Tool/LlrpNet.ProtocolGenerator.Tool.csproj" />
+    <Project Path="../LLRPCSharp/src/LlrpNet/LlrpNet.ProtocolModel/LlrpNet.ProtocolModel.csproj" />
+    <Project Path="../LLRPCSharp/src/LlrpSdk.Extensions.Abstractions/LlrpSdk.Extensions.Abstractions.csproj" />
+    <Project Path="../LLRPCSharp/src/LlrpSdk.Extensions.Impinj/LlrpSdk.Extensions.Impinj.csproj" />
+    <Project Path="../LLRPCSharp/src/LlrpSdk.Extensions.Seuic/LlrpSdk.Extensions.Seuic.csproj" />
+    <Project Path="../LLRPCSharp/src/LlrpSdk/LlrpSdk.csproj" />
+    <Project Path="../LLRPCSharp/src/LlrpVirtualReader/LlrpVirtualReader.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/LlrpReaderStudio.Core.Tests/LlrpReaderStudio.Core.Tests.csproj" />
   </Folder>

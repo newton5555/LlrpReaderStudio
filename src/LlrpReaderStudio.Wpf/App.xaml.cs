@@ -17,9 +17,10 @@ public partial class App : Application
 
         var services = new ServiceCollection();
         ConfigureServices(services);
-        serviceProvider = services.BuildServiceProvider();
+        ServiceProvider provider = services.BuildServiceProvider();
+        serviceProvider = provider;
 
-        serviceProvider.GetRequiredService<MainWindow>().Show();
+        provider.GetRequiredService<MainWindow>().Show();
     }
 
     private static void ConfigureServices(IServiceCollection services)
@@ -34,8 +35,8 @@ public partial class App : Application
         services.AddSingleton<ReaderFleetService>();
         services.AddSingleton<IReaderDiscoveryService, ZeroconfReaderDiscoveryService>();
 
-        // Page ViewModels (Transient)
-        services.AddTransient<InventoryViewModel>();
+        // Page ViewModels
+        services.AddSingleton<InventoryViewModel>();
         services.AddTransient<AddDataSourceViewModel>();
         services.AddTransient<TagMemoryViewModel>();
         services.AddTransient<SettingsViewModel>();
