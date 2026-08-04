@@ -18,6 +18,12 @@ public partial class TagRowViewModel : ObservableObject
     private sbyte? lastRssi;
 
     [ObservableProperty]
+    private ushort? lastChannelIndex;
+
+    [ObservableProperty]
+    private string tid = "--";
+
+    [ObservableProperty]
     private string readers = string.Empty;
 
     [ObservableProperty]
@@ -31,23 +37,36 @@ public partial class TagRowViewModel : ObservableObject
         this.index = index;
         Epc = observation.Epc;
         FirstSeen = observation.FirstSeen;
-        Tid = "--";
         XpcWords = "--";
         Update(observation);
     }
 
     public string Epc { get; }
-    public string Tid { get; }
     public string XpcWords { get; }
     public DateTimeOffset FirstSeen { get; }
+    public long SeenCount => ReadCount;
+    public string ReaderName => Readers;
+    public string AntennaId => Antennas;
+    public string FirstSeenTimeText => FirstSeen.ToLocalTime().ToString("HH:mm:ss.fff");
+    public string LastSeenTimeText => LastSeen.ToLocalTime().ToString("HH:mm:ss.fff");
+    public string PeakRssiText => LastRssi is null ? "--" : LastRssi.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    public string ChannelIndexText => LastChannelIndex is null ? "--" : LastChannelIndex.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     public void Update(TagObservation observation)
     {
         ReadCount = observation.ReadCount;
         LastSeen = observation.LastSeen;
         LastRssi = observation.LastRssi;
+        LastChannelIndex = observation.LastChannelIndex;
+        Tid = string.IsNullOrWhiteSpace(observation.Tid) ? Tid : observation.Tid;
         Readers = string.Join(", ", observation.Readers);
         Antennas = string.Join(", ", observation.Antennas);
+        OnPropertyChanged(nameof(SeenCount));
+        OnPropertyChanged(nameof(ReaderName));
+        OnPropertyChanged(nameof(AntennaId));
+        OnPropertyChanged(nameof(LastSeenTimeText));
+        OnPropertyChanged(nameof(PeakRssiText));
+        OnPropertyChanged(nameof(ChannelIndexText));
         RefreshTimeSinceLastSeen();
     }
 

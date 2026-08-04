@@ -1,11 +1,11 @@
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Windows;
-using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LlrpReaderStudio.Core;
+using LlrpReaderStudio.Infrastructure.Data;
 using LlrpReaderStudio.Models;
 using LlrpSdk;
 using Microsoft.Extensions.Logging;
@@ -16,6 +16,8 @@ namespace LlrpReaderStudio.ViewModels;
 public partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly ReaderFleetService fleet;
+    private readonly ReaderProfileRepository readerProfiles;
+    private readonly InventoryPresetRepository inventoryPresets;
     private readonly ILogger<MainViewModel> logger;
     private readonly Dictionary<Guid, ReaderItemViewModel> readerIndex = [];
     private readonly HashSet<Guid> readerToggleOperations = [];
@@ -39,17 +41,23 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     public MainViewModel(
         ReaderFleetService fleet,
+        ReaderProfileRepository readerProfiles,
+        InventoryPresetRepository inventoryPresets,
         InventoryViewModel inventoryViewModel,
         AddDataSourceViewModel addDataSourceViewModel,
+        DataSourceSettingsViewModel dataSourceSettingsViewModel,
         TagMemoryViewModel tagMemoryViewModel,
         SettingsViewModel settingsViewModel,
         AboutViewModel aboutViewModel,
         ILogger<MainViewModel>? logger = null)
     {
         this.fleet = fleet;
+        this.readerProfiles = readerProfiles;
+        this.inventoryPresets = inventoryPresets;
         this.logger = logger ?? NullLogger<MainViewModel>.Instance;
         InventoryVM = inventoryViewModel;
         AddDataSourceVM = addDataSourceViewModel;
+        DataSourceSettingsVM = dataSourceSettingsViewModel;
         TagMemoryVM = tagMemoryViewModel;
         SettingsVM = settingsViewModel;
         AboutVM = aboutViewModel;
@@ -58,10 +66,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         NavigationItems =
         [
-            new NavigationItem { Title = "寻卡 / Inventory", PageName = "Inventory", Glyph = "#", IconBrush = CreateBrush("#10B981"), ViewModel = InventoryVM },
-            new NavigationItem { Title = "Tag Memory", PageName = "TagMemory", Glyph = "M", IconBrush = CreateBrush("#F97316"), ViewModel = TagMemoryVM },
-            new NavigationItem { Title = "Tag Logging & Settings", PageName = "Settings", Glyph = "S", IconBrush = CreateBrush("#8B5CF6"), ViewModel = SettingsVM },
-            new NavigationItem { Title = "About Studio", PageName = "About", Glyph = "i", IconBrush = CreateBrush("#38BDF8"), ViewModel = AboutVM },
+            new NavigationItem { Title = "寻卡 / Inventory", PageName = "Inventory", Glyph = "#", ViewModel = InventoryVM },
+            new NavigationItem { Title = "Tag Memory", PageName = "TagMemory", Glyph = "M", ViewModel = TagMemoryVM },
+            new NavigationItem { Title = "Software Settings", PageName = "Settings", Glyph = "S", ViewModel = SettingsVM },
+            new NavigationItem { Title = "About Studio", PageName = "About", Glyph = "i", ViewModel = AboutVM },
         ];
 
         selectedNavigationItem = NavigationItems[0];
@@ -71,23 +79,81 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         InventoryVM.ToggleInventoryRequested += OnToggleInventoryRequested;
         AddDataSourceVM.DataSourceSubmitted += OnAddDataSourceSubmitted;
-        AddDataSourceVM.CancelRequested += () => CurrentPage = InventoryVM;
+        AddDataSourceVM.CancelRequested += OnCancelToInventoryRequested;
+        DataSourceSettingsVM.CancelRequested += OnCancelToInventoryRequested;
     }
 
     public InventoryViewModel InventoryVM { get; }
     public AddDataSourceViewModel AddDataSourceVM { get; }
+    public DataSourceSettingsViewModel DataSourceSettingsVM { get; }
     public TagMemoryViewModel TagMemoryVM { get; }
     public SettingsViewModel SettingsVM { get; }
     public AboutViewModel AboutVM { get; }
 
     public ObservableCollection<NavigationItem> NavigationItems { get; } = [];
     public ObservableCollection<ReaderItemViewModel> Readers { get; } = [];
+
+    public async Task LoadSavedDataSourcesAsync()
+    {
+        try
+        {
+            IReadOnlyList<SavedReaderProfile> savedProfiles = await readerProfiles.LoadAsync(CancellationToken.None);
+            foreach (SavedReaderProfile saved in savedProfiles)
+            {
+                ReaderProfile profile = saved.Profile;
+                if (readerIndex.ContainsKey(profile.Id))
+                {
+                    continue;
+                }
+
+                ReaderStatus status = fleet.Add(profile);
+                var item = new ReaderItemViewModel(status, saved.IsEnabled, onDeleteRequested: item => _ = RemoveSpecificReaderAsync(item));
+                readerIndex[profile.Id] = item;
+                item.PropertyChanged += OnReaderItemPropertyChanged;
+                Readers.Add(item);
+            }
+
+            SyncOperationReaders();
+            SelectedReader = Readers.FirstOrDefault();
+            _ = InitializeEnabledReadersAsync();
+            StatusMessage = Readers.Count == 0
+                ? "Click (+) under DATA SOURCES to add a reader."
+                : $"Loaded {Readers.Count} saved data source(s).";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Could not load saved data sources: {ex.Message}";
+        }
+    }
+
+    private async Task InitializeEnabledReadersAsync()
+    {
+        foreach (ReaderItemViewModel reader in Readers.Where(static reader => reader.IsEnabled).ToArray())
+        {
+            try
+            {
+                if (SelectedReader == reader)
+                {
+                    await DataSourceSettingsVM.InitializeForReaderAsync(reader, CancellationToken.None);
+                }
+                else
+                {
+                    await fleet.ConnectAsync(reader.Id, CancellationToken.None);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Could not initialize '{reader.Name}': {ex.Message}";
+            }
+        }
+    }
     partial void OnCurrentPageChanged(PageViewModelBase value)
     {
         ActiveTabName = value switch
         {
             InventoryViewModel => "Inventory",
             AddDataSourceViewModel => "AddDataSource",
+            DataSourceSettingsViewModel => "DataSourceSettings",
             TagMemoryViewModel => "TagMemory",
             SettingsViewModel => "Settings",
             AboutViewModel => "About",
@@ -107,10 +173,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     partial void OnSelectedReaderChanged(ReaderItemViewModel? value)
     {
-        TagMemoryVM.SelectedReaderId = value?.Id;
-        TagMemoryVM.SelectedReaderName = value?.Name;
-        SettingsVM.SelectedReaderId = value?.Id;
-        SettingsVM.SelectedReaderName = value?.Name;
+        DataSourceSettingsVM.SetSelectedReader(value);
+
+        if (value is not null)
+        {
+            _ = DataSourceSettingsVM.InitializeForReaderAsync(value, CancellationToken.None);
+            CurrentPage = DataSourceSettingsVM;
+        }
     }
 
     [RelayCommand]
@@ -120,11 +189,30 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             "Inventory" => InventoryVM,
             "AddDataSource" => AddDataSourceVM,
+            "DataSourceSettings" => DataSourceSettingsVM,
             "TagMemory" => TagMemoryVM,
             "Settings" => SettingsVM,
             "About" => AboutVM,
             _ => InventoryVM
         };
+    }
+
+    [RelayCommand]
+    private async Task OpenDataSourceSettingsAsync(ReaderItemViewModel? reader)
+    {
+        if (reader is null)
+        {
+            return;
+        }
+
+        if (SelectedReader != reader)
+        {
+            SelectedReader = reader;
+            return;
+        }
+
+        await DataSourceSettingsVM.InitializeForReaderAsync(reader, CancellationToken.None);
+        CurrentPage = DataSourceSettingsVM;
     }
 
     [RelayCommand]
@@ -144,9 +232,11 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         ArgumentNullException.ThrowIfNull(reader);
         logger.LogInformation("Removing data source: {Name} ({Endpoint})", reader.Name, reader.Endpoint);
         await fleet.RemoveAsync(reader.Id, CancellationToken.None);
+        await readerProfiles.DeleteAsync(reader.Id, CancellationToken.None);
         reader.PropertyChanged -= OnReaderItemPropertyChanged;
         readerIndex.Remove(reader.Id);
         Readers.Remove(reader);
+        SyncOperationReaders();
         SelectedReader = Readers.FirstOrDefault();
         StatusMessage = $"Removed data source '{reader.Name}'.";
     }
@@ -164,16 +254,20 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             };
 
             ReaderStatus status = fleet.Add(profile);
-            var item = new ReaderItemViewModel(status, onDeleteRequested: item => _ = RemoveSpecificReaderAsync(item));
+            var item = new ReaderItemViewModel(status, isEnabled: true, onDeleteRequested: item => _ = RemoveSpecificReaderAsync(item));
             readerIndex[profile.Id] = item;
             item.PropertyChanged += OnReaderItemPropertyChanged;
             Readers.Add(item);
+            SyncOperationReaders();
             SelectedReader = item;
 
             StatusMessage = $"Checking TCP connectivity for '{profile.Name}'...";
             await fleet.ValidateConnectionAsync(profile.Id, CancellationToken.None);
 
-            CurrentPage = InventoryVM;
+            await readerProfiles.SaveAsync(profile, item.IsEnabled, CancellationToken.None);
+            await DataSourceSettingsVM.InitializeForReaderAsync(item, CancellationToken.None);
+            DataSourceSettingsVM.SetSelectedReader(item);
+            CurrentPage = DataSourceSettingsVM;
             StatusMessage = $"Added data source '{profile.Name}' ({profile.Host}); TCP connection verified.";
         }
         catch (Exception ex)
@@ -221,7 +315,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
                     await fleet.ConnectAsync(reader.Id, CancellationToken.None);
                 }
 
-                await fleet.StartInventoryAsync(reader.Id, new InventorySettings(), CancellationToken.None);
+                await StartReaderInventoryAsync(reader);
                 started.Add(reader.Id);
             }
 
@@ -284,6 +378,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             if (readerIndex.TryGetValue(args.Status.Profile.Id, out ReaderItemViewModel? item))
             {
                 item.Update(args.Status);
+                if (SelectedReader == item)
+                {
+                    DataSourceSettingsVM.SetSelectedReader(item);
+                }
             }
         });
     }
@@ -328,7 +426,15 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     private async void OnReaderItemPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (isDisposing || args.PropertyName != nameof(ReaderItemViewModel.IsEnabled) ||
-            sender is not ReaderItemViewModel reader || !InventoryVM.IsInventoryRunning)
+            sender is not ReaderItemViewModel reader)
+        {
+            return;
+        }
+
+        SyncOperationReaders();
+        _ = readerProfiles.SetEnabledAsync(reader.Id, reader.IsEnabled, CancellationToken.None);
+
+        if (!InventoryVM.IsInventoryRunning)
         {
             return;
         }
@@ -348,7 +454,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
                     await fleet.ConnectAsync(reader.Id, CancellationToken.None);
                 }
 
-                await fleet.StartInventoryAsync(reader.Id, new InventorySettings(), CancellationToken.None);
+                await StartReaderInventoryAsync(reader);
                 StatusMessage = $"Enabled reader '{reader.Name}' for the active inventory.";
             }
             else if (!reader.IsEnabled)
@@ -375,6 +481,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             readerToggleOperations.Remove(reader.Id);
+            SyncOperationReaders();
         }
     }
 
@@ -383,9 +490,42 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         _ = ToggleInventoryAsync();
     }
 
-    private static SolidColorBrush CreateBrush(string hex)
+    private async Task StartReaderInventoryAsync(ReaderItemViewModel reader)
     {
-        return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+        InventorySettings settings = await ResolveInventorySettingsForStartAsync(reader);
+        settings = InventoryVM.ApplyReportOptions(settings);
+        await fleet.StartInventoryAsync(reader.Id, settings, CancellationToken.None);
+    }
+
+    private async Task<InventorySettings> ResolveInventorySettingsForStartAsync(ReaderItemViewModel reader)
+    {
+        InventorySettings? saved = await inventoryPresets.LoadDefaultAsync(reader.Id, CancellationToken.None);
+        if (saved is not null)
+        {
+            return saved;
+        }
+
+        try
+        {
+            ReaderSettingsSnapshot snapshot = await fleet.QuerySettingsAsync(reader.Id, CancellationToken.None);
+            return snapshot.Inventory?.Settings
+                ?? snapshot.Settings.Inventory
+                ?? new InventorySettings();
+        }
+        catch
+        {
+            return new InventorySettings();
+        }
+    }
+
+    private void OnCancelToInventoryRequested()
+    {
+        CurrentPage = InventoryVM;
+    }
+
+    private void SyncOperationReaders()
+    {
+        TagMemoryVM.SetOperationReaders(Readers);
     }
 
     public async ValueTask DisposeAsync()
@@ -401,6 +541,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         fleet.TagObserved -= OnTagObserved;
         InventoryVM.ToggleInventoryRequested -= OnToggleInventoryRequested;
         AddDataSourceVM.DataSourceSubmitted -= OnAddDataSourceSubmitted;
+        AddDataSourceVM.CancelRequested -= OnCancelToInventoryRequested;
+        DataSourceSettingsVM.CancelRequested -= OnCancelToInventoryRequested;
         foreach (ReaderItemViewModel reader in Readers)
         {
             reader.PropertyChanged -= OnReaderItemPropertyChanged;

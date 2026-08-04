@@ -1,0 +1,378 @@
+<UserControl x:Class="LlrpReaderStudio.Views.DataSourceSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:LlrpReaderStudio.ViewModels"
+             mc:Ignorable="d" d:DesignHeight="760" d:DesignWidth="1280"
+             d:DataContext="{d:DesignInstance Type=vm:DataSourceSettingsViewModel}">
+    <UserControl.Resources>
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,8,6" />
+        </Style>
+
+        <Style x:Key="FieldControlStyle" TargetType="Control">
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+
+        <Style x:Key="SectionBorderStyle" TargetType="Border">
+            <Setter Property="Margin" Value="0,0,10,10" />
+            <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Accent}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style x:Key="SectionHeaderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}" />
+            <Setter Property="Padding" Value="6,3" />
+        </Style>
+
+        <Style x:Key="SectionHeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel Margin="12">
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel>
+                <WrapPanel Margin="0,0,0,8">
+                    <TextBlock Text="Hostname:" FontWeight="SemiBold" Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding SelectedReaderHost}" Margin="0,0,18,0" />
+                    <TextBlock Text="Interface:" FontWeight="SemiBold" Margin="0,0,6,0" />
+                    <TextBlock Text="LLRP" Margin="0,0,18,0" />
+                    <TextBlock Text="Model:" FontWeight="SemiBold" Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding SelectedReaderModel}" Margin="0,0,18,0" />
+                    <TextBlock Text="Region:" FontWeight="SemiBold" Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding SelectedReaderRegion}" />
+                </WrapPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <TextBlock Text="Inventory" FontSize="28" VerticalAlignment="Center" />
+                    <TextBlock Text=" Diagnostics" FontSize="28" Opacity="0.35" VerticalAlignment="Center" ToolTip="Diagnostics is not implemented yet." />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Preset:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox Text="{Binding Preset}" IsEditable="True" Width="260">
+                        <ComboBoxItem Content="Default" />
+                    </ComboBox>
+                    <TextBlock Text="{Binding SettingsOrigin}" VerticalAlignment="Center" Margin="16,0,0,0" />
+                </StackPanel>
+            </StackPanel>
+
+            <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top">
+                <Button Content="REFRESH SETTINGS" Command="{Binding QuerySettingsCommand}" Margin="4,0,0,0" />
+                <Button Content="LOAD DEFAULTS" Command="{Binding DefaultSettingsCommand}" Margin="4,0,0,0" />
+                <Button Content="APPLY" Command="{Binding ApplySettingsCommand}" Margin="4,0,0,0" />
+            </WrapPanel>
+        </Grid>
+
+        <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0" MinHeight="38">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" Content="SAVE" Command="{Binding ApplySettingsCommand}" Width="180" Margin="0,0,8,0" />
+            <Button Grid.Column="1" Content="CANCEL" Command="{Binding CancelCommand}" Width="180" Margin="0,0,12,0" />
+            <TextBlock Grid.Column="2" Text="{Binding StatusMessage}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="5,0,0,0" />
+        </Grid>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                    <Border Style="{StaticResource SectionBorderStyle}">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeaderStyle}">
+                                <TextBlock Text="MANUAL SETTINGS" Style="{StaticResource SectionHeaderTextStyle}" />
+                            </Border>
+                            <Grid Margin="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Antennas:" Style="{StaticResource FieldLabelStyle}" />
+                            <DockPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,6">
+                                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Button Content="ALL" Width="60" Margin="0,0,6,0" />
+                                    <Button Content="CLEAR" Width="70" />
+                                </StackPanel>
+                                <TextBox Text="{Binding Antennas, UpdateSourceTrigger=PropertyChanged}" />
+                            </DockPanel>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="RF Mode:" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RfModeOptions}" Text="{Binding RfMode}" IsEditable="True" Style="{StaticResource FieldControlStyle}" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Search Mode:" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Grid.Row="2" Grid.Column="1" Text="{Binding SearchMode}" IsEditable="True" Style="{StaticResource FieldControlStyle}">
+                                <ComboBoxItem Content="Dual Target" />
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Enable Fast ID:" Style="{StaticResource FieldLabelStyle}" />
+                            <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding EnableFastId}" Margin="0,0,0,6" />
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Estimated Tag Population:" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Population}" Style="{StaticResource FieldControlStyle}" />
+
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Session:" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Grid.Row="5" Grid.Column="1" Text="{Binding Session}" IsEditable="True" Style="{StaticResource FieldControlStyle}">
+                                <ComboBoxItem Content="Session 0" />
+                                <ComboBoxItem Content="Session 1" />
+                                <ComboBoxItem Content="Session 2" />
+                                <ComboBoxItem Content="Session 3" />
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Report Phase Angle:" Style="{StaticResource FieldLabelStyle}" />
+                            <CheckBox Grid.Row="6" Grid.Column="1" IsChecked="{Binding ReportPhaseAngle}" Margin="0,0,0,6" />
+
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Report Doppler Frequency:" Style="{StaticResource FieldLabelStyle}" />
+                            <CheckBox Grid.Row="7" Grid.Column="1" IsChecked="{Binding ReportDopplerFrequency}" />
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SectionBorderStyle}">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeaderStyle}">
+                                <TextBlock Text="POWER AND SENSITIVITY SETTINGS" Style="{StaticResource SectionHeaderTextStyle}" />
+                            </Border>
+                            <Grid Margin="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Tx Power Index:" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding TxPowerOptions}" Text="{Binding PowerDbm}" IsEditable="True" Style="{StaticResource FieldControlStyle}" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Rx Sensitivity:" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RxSensitivityOptions}" Text="{Binding RxSensitivity}" IsEditable="True" Style="{StaticResource FieldControlStyle}" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Enable Max Sensitivity:" Style="{StaticResource FieldLabelStyle}" />
+                            <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding EnableMaxSensitivity}" />
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+
+                    <Expander IsExpanded="{Binding UseIndividualAntennaSettings, Mode=TwoWay}" Margin="0,0,10,10">
+                        <Expander.Header>
+                            <Border Style="{StaticResource SectionHeaderStyle}" MinWidth="280">
+                                <TextBlock Text="INDIVIDUAL ANTENNAS" Style="{StaticResource SectionHeaderTextStyle}" />
+                            </Border>
+                        </Expander.Header>
+                        <Border BorderBrush="{DynamicResource MahApps.Brushes.Accent}" BorderThickness="1">
+                            <ItemsControl ItemsSource="{Binding AntennaSettings}" Margin="8">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:AntennaSettingsRow}">
+                                        <Grid Margin="0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="140" />
+                                                <ColumnDefinition Width="110" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="Tx Power Index:" VerticalAlignment="Center" />
+                                            <ComboBox Grid.Column="2"
+                                                      ItemsSource="{Binding DataContext.TxPowerOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                      Text="{Binding TxPower}"
+                                                      IsEditable="True"
+                                                      Margin="0,0,12,0" />
+                                            <TextBlock Grid.Column="3" Text="Rx Sensitivity:" VerticalAlignment="Center" />
+                                            <ComboBox Grid.Column="4"
+                                                      ItemsSource="{Binding DataContext.RxSensitivityOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                      Text="{Binding RxSensitivity}"
+                                                      IsEditable="True" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+                    </Expander>
+
+                    <Border Style="{StaticResource SectionBorderStyle}">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeaderStyle}">
+                                <TextBlock Text="GPI CONFIGURATION" Style="{StaticResource SectionHeaderTextStyle}" />
+                            </Border>
+                            <DataGrid ItemsSource="{Binding GpiSettings}"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      IsReadOnly="False"
+                                      HeadersVisibility="Column"
+                                      Height="132"
+                                      Margin="8"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="GPI PORT" Binding="{Binding Port}" Width="80" IsReadOnly="True" />
+                                    <DataGridCheckBoxColumn Header="START" Binding="{Binding StartEnabled}" Width="80" />
+                                    <DataGridTextColumn Header="LEVEL" Binding="{Binding StartLevel}" Width="90" />
+                                    <DataGridCheckBoxColumn Header="STOP" Binding="{Binding StopEnabled}" Width="80" />
+                                    <DataGridTextColumn Header="LEVEL" Binding="{Binding StopLevel}" Width="90" />
+                                    <DataGridTextColumn Header="DEBOUNCE (MS)" Binding="{Binding DebounceMs}" Width="120" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                    <Border Style="{StaticResource SectionBorderStyle}">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeaderStyle}">
+                                <TextBlock Text="GEN 2 FILTERING" Style="{StaticResource SectionHeaderTextStyle}" />
+                            </Border>
+                            <Grid Margin="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Mode:" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding FilterMode}" IsEditable="True" Style="{StaticResource FieldControlStyle}">
+                                <ComboBoxItem Content="None" />
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Filter Verification:" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" Text="{Binding FilterVerification}" IsEditable="True" Style="{StaticResource FieldControlStyle}" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="Filter 1" HorizontalAlignment="Center" Margin="0,0,0,6" />
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="Filter 2" HorizontalAlignment="Center" Margin="0,0,0,6" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Filter:" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Filter1}" Margin="0,0,6,6" />
+                            <TextBox Grid.Row="3" Grid.Column="2" Text="{Binding Filter2}" Margin="6,0,0,6" />
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Bit Length:" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Filter1BitLength}" Margin="0,0,6,6" />
+                            <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding Filter2BitLength}" Margin="6,0,0,6" />
+
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Offset:" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Filter1Offset}" Margin="0,0,6,6" />
+                            <TextBox Grid.Row="5" Grid.Column="2" Text="{Binding Filter2Offset}" Margin="6,0,0,6" />
+
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Memory Bank:" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Grid.Row="6" Grid.Column="1" Text="{Binding Filter1MemoryBank}" IsEditable="True" Margin="0,0,6,6" />
+                            <ComboBox Grid.Row="6" Grid.Column="2" Text="{Binding Filter2MemoryBank}" IsEditable="True" Margin="6,0,0,6" />
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SectionBorderStyle}">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeaderStyle}">
+                                <TextBlock Text="FREQUENCY SETTINGS" Style="{StaticResource SectionHeaderTextStyle}" />
+                            </Border>
+                            <Grid Margin="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Use Specified Frequencies:" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Grid.Column="1" Text="{Binding UseSpecifiedFrequencies}" IsEditable="True" Style="{StaticResource FieldControlStyle}">
+                                <ComboBoxItem Content="Disabled" />
+                            </ComboBox>
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SectionBorderStyle}">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeaderStyle}">
+                                <TextBlock Text="LOW DUTY CYCLE" Style="{StaticResource SectionHeaderTextStyle}" />
+                            </Border>
+                            <Grid Margin="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <CheckBox Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Content="Enable" IsChecked="{Binding LowDutyCycleEnabled}" Margin="0,0,0,8" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Empty Field Timeout (ms):" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding EmptyFieldTimeoutMs}" Style="{StaticResource FieldControlStyle}" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Field Ping Interval (ms):" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding FieldPingIntervalMs}" Style="{StaticResource FieldControlStyle}" />
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SectionBorderStyle}">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeaderStyle}">
+                                <TextBlock Text="GPO CONTROL" Style="{StaticResource SectionHeaderTextStyle}" />
+                            </Border>
+                            <UniformGrid Columns="2" Margin="8">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,20,8">
+                                    <mah:ToggleSwitch IsOn="{Binding Gpo1, Mode=TwoWay}" OnContent="" OffContent="" />
+                                    <TextBlock Text="GPO 1" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,20,8">
+                                    <mah:ToggleSwitch IsOn="{Binding Gpo2, Mode=TwoWay}" OnContent="" OffContent="" />
+                                    <TextBlock Text="GPO 2" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
+                                    <mah:ToggleSwitch IsOn="{Binding Gpo3, Mode=TwoWay}" OnContent="" OffContent="" />
+                                    <TextBlock Text="GPO 3" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
+                                    <mah:ToggleSwitch IsOn="{Binding Gpo4, Mode=TwoWay}" OnContent="" OffContent="" />
+                                    <TextBlock Text="GPO 4" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                </StackPanel>
+                            </UniformGrid>
+                        </DockPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

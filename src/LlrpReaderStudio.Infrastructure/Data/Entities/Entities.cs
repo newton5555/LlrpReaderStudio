@@ -19,6 +19,8 @@ public sealed class ReaderProfileEntity
 
     public bool EnableImpinjExtensions { get; set; } = true;
 
+    public bool IsEnabled { get; set; } = true;
+
     public bool AutoReconnect { get; set; } = false;
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

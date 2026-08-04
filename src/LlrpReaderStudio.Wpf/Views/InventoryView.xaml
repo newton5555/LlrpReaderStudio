@@ -3,17 +3,21 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:converters="clr-namespace:LlrpReaderStudio.Converters"
              xmlns:vm="clr-namespace:LlrpReaderStudio.ViewModels"
              mc:Ignorable="d" d:DesignHeight="600" d:DesignWidth="900"
              d:DataContext="{d:DesignInstance Type=vm:InventoryViewModel}">
-    <Grid Background="#0F172A">
+    <UserControl.Resources>
+        <converters:BindingProxy x:Key="InventoryVmProxy" Data="{Binding}" />
+    </UserControl.Resources>
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="68" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- Header Bar -->
-        <Border Grid.Row="0" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,0,0,1" Padding="20,0">
+        <Border Grid.Row="0" BorderThickness="0,0,0,1" Padding="20,0">
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -22,96 +26,108 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Circular Play/Stop Toggle -->
-                <Button Grid.Column="0" Command="{Binding ToggleInventoryCommand}" Width="48" Height="48" Background="Transparent" BorderThickness="0" ToolTip="Start / Stop LLRP Reader Inventory" Cursor="Hand">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Grid>
-                                <Ellipse x:Name="bg" Fill="#10B981" />
-                                <TextBlock x:Name="icon" Text="▶" Foreground="White" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="3,0,0,0" />
-                            </Grid>
-                            <ControlTemplate.Triggers>
+                <Button Grid.Column="0" Command="{Binding ToggleInventoryCommand}" Width="96" Height="36" ToolTip="Start / Stop LLRP Reader Inventory">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Content" Value="Start" />
+                            <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsInventoryRunning}" Value="True">
-                                    <Setter TargetName="bg" Property="Fill" Value="#EF4444" />
-                                    <Setter TargetName="icon" Property="Text" Value="◼" />
-                                    <Setter TargetName="icon" Property="Margin" Value="0" />
+                                    <Setter Property="Content" Value="Stop" />
                                 </DataTrigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
                 </Button>
 
                 <!-- Center Digital Timer Display -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="ELAPSED TIME: " Foreground="#94A3B8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <TextBlock Text="{Binding ElapsedTimeText}" FontSize="36" FontFamily="Consolas, Courier New" FontWeight="Bold" Foreground="#38BDF8" VerticalAlignment="Center" />
+                    <TextBlock Text="ELAPSED TIME: " FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding ElapsedTimeText}" FontSize="36" FontFamily="Consolas, Courier New" FontWeight="Bold" VerticalAlignment="Center" />
                 </StackPanel>
 
                 <!-- Quick Clear Tags -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Clear Tags" Command="{Binding ClearTagsCommand}" Style="{StaticResource WorkbenchButtonStyle}" Padding="14,6" Margin="0,0,8,0" />
+                    <Button Content="Clear Tags" Command="{Binding ClearTagsCommand}" Padding="14,6" Margin="0,0,8,0" />
                 </StackPanel>
             </Grid>
         </Border>
 
         <!-- High Contrast DataGrid -->
         <DataGrid Grid.Row="1" ItemsSource="{Binding Tags}" AutoGenerateColumns="False" IsReadOnly="True"
-                  CanUserAddRows="False" AlternatingRowBackground="#1E293B" Background="#0F172A"
-                  GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#334155"
-                  RowHeight="32" FontSize="12" Foreground="#F8FAFC" Margin="16" BorderBrush="#334155" BorderThickness="1">
+                  CanUserAddRows="False"
+                  GridLinesVisibility="Horizontal"
+                  RowHeight="32" FontSize="12" Margin="16" BorderThickness="1">
             <DataGrid.Resources>
+                <Style x:Key="CenteredCellTextStyle" TargetType="TextBlock">
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                </Style>
+                <Style x:Key="CenteredMonoCellTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CenteredCellTextStyle}">
+                    <Setter Property="FontFamily" Value="Consolas, Courier New" />
+                </Style>
                 <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="Background" Value="#0F172A" />
-                    <Setter Property="Foreground" Value="#38BDF8" />
                     <Setter Property="FontWeight" Value="Bold" />
                     <Setter Property="Padding" Value="10,8" />
-                    <Setter Property="BorderBrush" Value="#334155" />
                     <Setter Property="BorderThickness" Value="0,0,1,1" />
+                    <Setter Property="ContextMenu">
+                        <Setter.Value>
+                            <ContextMenu>
+                                <CheckBox Content="#" IsChecked="{Binding Data.ShowIndexColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                                <CheckBox Content="EPC" IsChecked="{Binding Data.ShowEpcColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                                <CheckBox Content="TID" IsChecked="{Binding Data.ShowTidColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                                <CheckBox Content="Count" IsChecked="{Binding Data.ShowCountColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                                <CheckBox Content="First Seen" IsChecked="{Binding Data.ShowFirstSeenColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                                <CheckBox Content="Last Seen" IsChecked="{Binding Data.ShowLastSeenColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                                <CheckBox Content="Reader" IsChecked="{Binding Data.ShowReaderColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                                <CheckBox Content="Antenna" IsChecked="{Binding Data.ShowAntennaColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                                <CheckBox Content="Peak RSSI" IsChecked="{Binding Data.ShowPeakRssiColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                                <CheckBox Content="Channel" IsChecked="{Binding Data.ShowChannelColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                            </ContextMenu>
+                        </Setter.Value>
+                    </Setter>
                 </Style>
                 <Style TargetType="DataGridCell">
                     <Setter Property="Padding" Value="8,4" />
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="DataGridCell">
-                                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
-                                    <ContentPresenter VerticalAlignment="Center" />
-                                </Border>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                    <Style.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="#0284C7" />
-                            <Setter Property="Foreground" Value="White" />
-                        </Trigger>
-                    </Style.Triggers>
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
                 </Style>
             </DataGrid.Resources>
             <DataGrid.Columns>
-                <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="50" />
-                <DataGridTextColumn Header="EPC" Binding="{Binding Epc}" Width="2.2*">
+                <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="50"
+                                    ElementStyle="{StaticResource CenteredCellTextStyle}"
+                                    Visibility="{Binding Data.ShowIndexColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <DataGridTextColumn Header="EPC" Binding="{Binding Epc}" Width="2.2*"
+                                    Visibility="{Binding Data.ShowEpcColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CenteredMonoCellTextStyle}">
                             <Setter Property="FontFamily" Value="Consolas, Courier New" />
                             <Setter Property="FontWeight" Value="SemiBold" />
-                            <Setter Property="Foreground" Value="#F8FAFC" />
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="TID" Binding="{Binding Tid}" Width="1.8*">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="FontFamily" Value="Consolas, Courier New" />
-                            <Setter Property="Foreground" Value="#94A3B8" />
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="Count" Binding="{Binding SeenCount}" Width="80" />
-                <DataGridTextColumn Header="First Seen" Binding="{Binding FirstSeenTimeText}" Width="110" />
-                <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeenTimeText}" Width="110" />
-                <DataGridTextColumn Header="Reader" Binding="{Binding ReaderName}" Width="120" />
-                <DataGridTextColumn Header="Antenna" Binding="{Binding AntennaId}" Width="70" />
-                <DataGridTextColumn Header="Peak RSSI" Binding="{Binding PeakRssiText}" Width="90" />
-                <DataGridTextColumn Header="Channel" Binding="{Binding ChannelIndexText}" Width="80" />
+                <DataGridTextColumn Header="TID" Binding="{Binding Tid}" Width="1.8*"
+                                    ElementStyle="{StaticResource CenteredMonoCellTextStyle}"
+                                    Visibility="{Binding Data.ShowTidColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <DataGridTextColumn Header="Count" Binding="{Binding SeenCount}" Width="80"
+                                    ElementStyle="{StaticResource CenteredCellTextStyle}"
+                                    Visibility="{Binding Data.ShowCountColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <DataGridTextColumn Header="First Seen" Binding="{Binding FirstSeenTimeText}" Width="110"
+                                    ElementStyle="{StaticResource CenteredCellTextStyle}"
+                                    Visibility="{Binding Data.ShowFirstSeenColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeenTimeText}" Width="110"
+                                    ElementStyle="{StaticResource CenteredCellTextStyle}"
+                                    Visibility="{Binding Data.ShowLastSeenColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <DataGridTextColumn Header="Reader" Binding="{Binding ReaderName}" Width="120"
+                                    ElementStyle="{StaticResource CenteredCellTextStyle}"
+                                    Visibility="{Binding Data.ShowReaderColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <DataGridTextColumn Header="Antenna" Binding="{Binding AntennaId}" Width="70"
+                                    ElementStyle="{StaticResource CenteredCellTextStyle}"
+                                    Visibility="{Binding Data.ShowAntennaColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <DataGridTextColumn Header="Peak RSSI" Binding="{Binding PeakRssiText}" Width="90"
+                                    ElementStyle="{StaticResource CenteredCellTextStyle}"
+                                    Visibility="{Binding Data.ShowPeakRssiColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <DataGridTextColumn Header="Channel" Binding="{Binding ChannelIndexText}" Width="80"
+                                    ElementStyle="{StaticResource CenteredCellTextStyle}"
+                                    Visibility="{Binding Data.ShowChannelColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </DataGrid.Columns>
         </DataGrid>
     </Grid>

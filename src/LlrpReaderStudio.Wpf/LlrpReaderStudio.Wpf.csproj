@@ -4,7 +4,7 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <IsPackable>false</IsPackable>
-    <ApplicationIcon />
+    <ApplicationIcon>Assets\llrp-reader-studio-icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

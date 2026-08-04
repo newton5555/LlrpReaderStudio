@@ -157,6 +157,13 @@ public sealed class ReaderFleetService : IAsyncDisposable
             managed.Status = managed.Status with { State = StudioReaderState.Inventorying, Error = null };
         }, cancellationToken);
 
+    public Task StartConfiguredInventoryAsync(Guid profileId, CancellationToken cancellationToken = default) =>
+        RunAsync(profileId, StudioReaderState.Inventorying, async managed =>
+        {
+            await managed.Session.StartConfiguredInventoryAsync(cancellationToken).ConfigureAwait(false);
+            managed.Status = managed.Status with { State = StudioReaderState.Inventorying, Error = null };
+        }, cancellationToken);
+
     public Task StopInventoryAsync(Guid profileId, CancellationToken cancellationToken = default) =>
         RunAsync(profileId, StudioReaderState.Stopping, async managed =>
         {
@@ -169,6 +176,8 @@ public sealed class ReaderFleetService : IAsyncDisposable
 
     public Task<ReaderSettingsDefaults> GetDefaultSettingsAsync(Guid profileId, CancellationToken cancellationToken = default) =>
         UseAsync(profileId, (session, token) => session.GetDefaultSettingsAsync(token), cancellationToken);
+
+    public ReaderCapabilities? GetCapabilities(Guid profileId) => Get(profileId).Session.Capabilities;
 
     public Task ApplySettingsAsync(Guid profileId, ReaderSettings settings, CancellationToken cancellationToken = default) =>
         UseAsync(profileId, (session, token) => session.ApplySettingsAsync(settings, token), cancellationToken);

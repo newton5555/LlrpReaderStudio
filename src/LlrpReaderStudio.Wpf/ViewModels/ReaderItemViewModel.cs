@@ -17,13 +17,14 @@ public partial class ReaderItemViewModel : ObservableObject
     [ObservableProperty]
     private string details = string.Empty;
 
-    public ReaderItemViewModel(ReaderStatus status, Action<ReaderItemViewModel>? onDeleteRequested = null)
+    public ReaderItemViewModel(ReaderStatus status, bool isEnabled = true, Action<ReaderItemViewModel>? onDeleteRequested = null)
     {
         Id = status.Profile.Id;
         Name = status.Profile.Name;
         Host = status.Profile.Host;
         Port = status.Profile.Port;
         Endpoint = $"{Host}:{Port}";
+        this.isEnabled = isEnabled;
         this.onDeleteRequested = onDeleteRequested;
         Update(status);
     }

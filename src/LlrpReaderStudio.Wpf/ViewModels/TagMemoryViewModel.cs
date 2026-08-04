@@ -9,6 +9,7 @@ namespace LlrpReaderStudio.ViewModels;
 public partial class TagMemoryViewModel : PageViewModelBase
 {
     private readonly ReaderFleetService fleet;
+    private IReadOnlyList<ReaderOperationTarget> operationReaders = [];
 
     [ObservableProperty]
     private string targetEpc = string.Empty;
@@ -39,15 +40,20 @@ public partial class TagMemoryViewModel : PageViewModelBase
 
     public IReadOnlyList<TagMemoryBank> MemoryBanks { get; } = Enum.GetValues<TagMemoryBank>();
 
-    public Guid? SelectedReaderId { get; set; }
-    public string? SelectedReaderName { get; set; }
+    public void SetOperationReaders(IEnumerable<ReaderItemViewModel> readers)
+    {
+        operationReaders = readers
+            .Where(static reader => reader.IsEnabled)
+            .Select(static reader => new ReaderOperationTarget(reader.Id, reader.Name))
+            .ToArray();
+    }
 
     [RelayCommand]
     private async Task ReadMemoryAsync()
     {
-        if (SelectedReaderId is not Guid readerId)
+        ReaderOperationTarget reader = GetSingleOperationReader();
+        if (reader.Id == Guid.Empty)
         {
-            StatusMessage = "Select a reader in the sidebar first.";
             return;
         }
 
@@ -63,11 +69,11 @@ public partial class TagMemoryViewModel : PageViewModelBase
                 AccessPassword = ParseUInt32Hex(AccessPassword),
             };
 
-            TagAccessResult result = await fleet.ReadTagMemoryAsync(readerId, req, CancellationToken.None);
+            TagAccessResult result = await fleet.ReadTagMemoryAsync(reader.Id, req, CancellationToken.None);
             IReadOnlyList<ushort> words = result.Operation.ReadData ?? [];
             byte[] bytes = words.SelectMany(static w => new byte[] { (byte)(w >> 8), (byte)(w & 0xFF) }).ToArray();
             TagData = HexCodec.FormatBytes(bytes);
-            StatusMessage = $"{SelectedReaderName}: Read {words.Count * 2} bytes from {MemoryBank}.";
+            StatusMessage = $"{reader.Name}: Read {words.Count * 2} bytes from {MemoryBank}.";
         }
         catch (Exception ex)
         {
@@ -78,9 +84,9 @@ public partial class TagMemoryViewModel : PageViewModelBase
     [RelayCommand]
     private async Task WriteMemoryAsync()
     {
-        if (SelectedReaderId is not Guid readerId)
+        ReaderOperationTarget reader = GetSingleOperationReader();
+        if (reader.Id == Guid.Empty)
         {
-            StatusMessage = "Select a reader in the sidebar first.";
             return;
         }
 
@@ -110,8 +116,8 @@ public partial class TagMemoryViewModel : PageViewModelBase
                 AccessPassword = ParseUInt32Hex(AccessPassword),
             };
 
-            TagAccessResult result = await fleet.WriteTagMemoryAsync(readerId, req, CancellationToken.None);
-            StatusMessage = $"{SelectedReaderName}: Wrote {writeWords.Length * 2} bytes to {MemoryBank}.";
+            TagAccessResult result = await fleet.WriteTagMemoryAsync(reader.Id, req, CancellationToken.None);
+            StatusMessage = $"{reader.Name}: Wrote {writeWords.Length * 2} bytes to {MemoryBank}.";
         }
         catch (Exception ex)
         {
@@ -139,4 +145,23 @@ public partial class TagMemoryViewModel : PageViewModelBase
 
     private static uint ParseUInt32Hex(string value) =>
         uint.Parse(value, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture);
+
+    private ReaderOperationTarget GetSingleOperationReader()
+    {
+        if (operationReaders.Count == 0)
+        {
+            StatusMessage = "Turn ON one data source before tag memory access.";
+            return new ReaderOperationTarget(Guid.Empty, string.Empty);
+        }
+
+        if (operationReaders.Count > 1)
+        {
+            StatusMessage = "Turn ON exactly one data source for tag memory access.";
+            return new ReaderOperationTarget(Guid.Empty, string.Empty);
+        }
+
+        return operationReaders[0];
+    }
+
+    private readonly record struct ReaderOperationTarget(Guid Id, string Name);
 }

@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LlrpReaderStudio.Core;
+using LlrpSdk;
 
 namespace LlrpReaderStudio.ViewModels;
 
@@ -26,6 +27,36 @@ public partial class InventoryViewModel : PageViewModelBase
     [ObservableProperty]
     private string readRateText = "0.000 reads/s";
 
+    [ObservableProperty]
+    private bool showIndexColumn = true;
+
+    [ObservableProperty]
+    private bool showEpcColumn = true;
+
+    [ObservableProperty]
+    private bool showTidColumn;
+
+    [ObservableProperty]
+    private bool showCountColumn = true;
+
+    [ObservableProperty]
+    private bool showFirstSeenColumn = true;
+
+    [ObservableProperty]
+    private bool showLastSeenColumn = true;
+
+    [ObservableProperty]
+    private bool showReaderColumn = true;
+
+    [ObservableProperty]
+    private bool showAntennaColumn = true;
+
+    [ObservableProperty]
+    private bool showPeakRssiColumn = true;
+
+    [ObservableProperty]
+    private bool showChannelColumn = true;
+
     public InventoryViewModel()
     {
         PageTitle = "寻卡 / Inventory";
@@ -37,6 +68,24 @@ public partial class InventoryViewModel : PageViewModelBase
     public int UniqueTagCount => Tags.Count;
 
     public event Action? ToggleInventoryRequested;
+
+    public InventorySettings ApplyReportOptions(InventorySettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        return settings with
+        {
+            Report = settings.Report with
+            {
+                IncludeAntennaId = ShowAntennaColumn,
+                IncludeChannelIndex = ShowChannelColumn,
+                IncludePeakRssi = ShowPeakRssiColumn,
+                IncludeFirstSeenTimestamp = ShowFirstSeenColumn,
+                IncludeLastSeenTimestamp = ShowLastSeenColumn,
+                IncludeTagSeenCount = ShowCountColumn,
+            },
+        };
+    }
 
     [RelayCommand]
     private void ToggleInventory()

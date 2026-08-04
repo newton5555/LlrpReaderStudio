@@ -20,6 +20,7 @@ public interface IReaderSession : IAsyncDisposable
     public Task<ReaderSettingsDefaults> GetDefaultSettingsAsync(CancellationToken cancellationToken);
     public Task ApplySettingsAsync(ReaderSettings settings, CancellationToken cancellationToken);
     public Task StartInventoryAsync(InventorySettings settings, CancellationToken cancellationToken);
+    public Task StartConfiguredInventoryAsync(CancellationToken cancellationToken);
     public Task StopInventoryAsync(CancellationToken cancellationToken);
     public Task<TagAccessResult> ReadTagMemoryAsync(ReadTagRequest request, CancellationToken cancellationToken);
     public Task<TagAccessResult> WriteTagMemoryAsync(WriteTagRequest request, CancellationToken cancellationToken);
@@ -90,6 +91,16 @@ internal sealed class LlrpReaderSession : IReaderSession
         }
 
         inventorySession = await reader.StartInventoryAsync(settings, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task StartConfiguredInventoryAsync(CancellationToken cancellationToken)
+    {
+        if (inventorySession is not null)
+        {
+            throw new InvalidOperationException("Inventory is already running for this reader.");
+        }
+
+        inventorySession = await reader.StartInventoryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task StopInventoryAsync(CancellationToken cancellationToken)

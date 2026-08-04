@@ -5,6 +5,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LlrpReaderStudio.Core\LlrpReaderStudio.Core.csproj" />
+    <ProjectReference Include="..\..\..\LLRPCSharp\src\LlrpSdk.Extensions.Abstractions\LlrpSdk.Extensions.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\LLRPCSharp\src\LlrpSdk.Extensions.Impinj\LlrpSdk.Extensions.Impinj.csproj" />
   </ItemGroup>
 
   <ItemGroup>
