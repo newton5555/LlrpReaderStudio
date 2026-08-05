@@ -277,3 +277,12 @@ R700 与兼容 M700 标签显示 Protected Mode 操作。必须启用 FastID、�
 - 默认不在自动重连后恢复 RF；
 - 首版只提供中文资源；
 - 密码默认不持久化。
+
+## 9. 已识别的后续优化（暂缓 / 有意不做）
+
+以下条目经审查识别，当前明确不实施，条件成熟后再评估：
+
+- **合并单 Serilog 管线**：当前实现为两个独立 `ILoggerFactory`（`studio-*.log` 应用日志、`sdk-*.log` SDK 日志），通过 `IsSdkLogEvent` 类别过滤避免串扰。职责边界清楚、生命周期正确（容器/Session 先释放，SDK 日志工厂最后释放，异步 sink 先 flush）。项目规模不大时保持双工厂，可读性更好；若未来日志需求复杂化（多文件分级、动态级别切换），再重构为单管线 + 分类过滤写多文件。
+- **SDK 日志区分多 Reader**：当前输出模板含 `{SourceContext}`（如 `LlrpSdk.Reader.LlrpReader`），但 SDK 内部 logger 不带 endpoint/ReaderId，多设备同时操作时无法从 sdk-*.log 直接区分。需要在 SDK 侧（LlrpReader 的 logger 上下文）或 ReaderSession 层附加 reader 信息，依赖 SDK 版本迭代，暂不实施。
+- **SDK `RxSensitivityEntry` 偏移模型改造**：SDK 的 `ReceiveSensitivityDbm = value/100` 是偏移量而非绝对 dBm；UI 已对齐为显示 SDK 原始 `ReceiveSensitivityValue`（0/10/11…50）。SDK 侧模型修正待 SDK 迭代时一并处理。
+- **WPF 侧设置转换逻辑抽到 Core 层加单测**：`DataSourceSettingsViewModel` 中的 UI↔settings 转换（天线配置、GPI、Filter、SearchMode 等）目前无单测，逻辑稳定后抽取到 Core 层补覆盖。

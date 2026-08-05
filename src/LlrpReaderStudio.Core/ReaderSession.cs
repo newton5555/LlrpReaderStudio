@@ -1,5 +1,6 @@
 using LlrpSdk;
 using LlrpSdk.Extensions.Impinj;
+using Microsoft.Extensions.Logging;
 
 namespace LlrpReaderStudio.Core;
 
@@ -34,11 +35,19 @@ public interface IReaderSessionFactory
 
 public sealed class LlrpReaderSessionFactory : IReaderSessionFactory
 {
+    private readonly ILoggerFactory loggerFactory;
+
+    public LlrpReaderSessionFactory(ILoggerFactory loggerFactory)
+    {
+        this.loggerFactory = loggerFactory;
+    }
+
     public IReaderSession Create(ReaderProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
         profile.Validate();
         var builder = new LlrpReaderBuilder(profile.Host).WithPort(profile.Port);
+        builder.WithLoggerFactory(loggerFactory);
         if (profile.EnableImpinjExtensions)
         {
             builder.UseImpinj();

@@ -25,7 +25,7 @@ public sealed class ReaderFleetService : IAsyncDisposable
 
     public ReaderFleetService(IReaderSessionFactory? sessionFactory = null, ILogger<ReaderFleetService>? logger = null)
     {
-        this.sessionFactory = sessionFactory ?? new LlrpReaderSessionFactory();
+        this.sessionFactory = sessionFactory ?? new LlrpReaderSessionFactory(NullLoggerFactory.Instance);
         this.logger = logger ?? NullLogger<ReaderFleetService>.Instance;
     }
 

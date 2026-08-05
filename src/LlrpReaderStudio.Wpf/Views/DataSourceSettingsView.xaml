@@ -53,19 +53,6 @@
                     <TextBlock Text="Region:" FontWeight="SemiBold" Margin="0,0,6,0" />
                     <TextBlock Text="{Binding SelectedReaderRegion}" />
                 </WrapPanel>
-
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                    <TextBlock Text="Inventory" FontSize="28" VerticalAlignment="Center" />
-                    <TextBlock Text=" Diagnostics" FontSize="28" Opacity="0.35" VerticalAlignment="Center" ToolTip="Diagnostics is not implemented yet." />
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Preset:" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <ComboBox Text="{Binding Preset}" IsEditable="True" Width="260">
-                        <ComboBoxItem Content="Default" />
-                    </ComboBox>
-                    <TextBlock Text="{Binding SettingsOrigin}" VerticalAlignment="Center" Margin="16,0,0,0" />
-                </StackPanel>
             </StackPanel>
 
             <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top">
@@ -86,8 +73,18 @@
             <TextBox Grid.Column="2" Text="{Binding StatusMessage}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="5,0,0,0" IsReadOnly="True" BorderThickness="0" Background="Transparent" />
         </Grid>
 
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,0,12">
-            <Grid>
+        <TabControl>
+            <TabItem Header="Inventory">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Preset:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox Text="{Binding Preset}" IsEditable="True" Width="260">
+                                <ComboBoxItem Content="Default" />
+                            </ComboBox>
+                            <TextBlock Text="{Binding SettingsOrigin}" VerticalAlignment="Center" Margin="16,0,0,0" />
+                        </StackPanel>
+                        <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
@@ -178,10 +175,10 @@
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Tx Power Index:" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding TxPowerOptions}" Text="{Binding PowerDbm}" IsEditable="True" Style="{StaticResource FieldControlStyle}" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding TxPowerOptions}" Text="{Binding PowerDbm}" IsEditable="True" IsEnabled="{Binding IsGlobalAntennaSettingsEnabled}" Style="{StaticResource FieldControlStyle}" />
 
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Rx Sensitivity:" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RxSensitivityOptions}" Text="{Binding RxSensitivity}" IsEditable="True" Style="{StaticResource FieldControlStyle}" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RxSensitivityOptions}" Text="{Binding RxSensitivity}" IsEditable="True" IsEnabled="{Binding IsGlobalAntennaSettingsEnabled}" Style="{StaticResource FieldControlStyle}" />
                             </Grid>
 
                             <Expander DockPanel.Dock="Top" IsExpanded="{Binding IsIndividualAntennasExpanded, Mode=TwoWay}" Margin="8,0,8,8">
@@ -238,12 +235,47 @@
                                       Margin="8"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="GPI PORT" Binding="{Binding Port}" Width="80" IsReadOnly="True" />
-                                    <DataGridCheckBoxColumn Header="START" Binding="{Binding StartEnabled}" Width="80" />
-                                    <DataGridTextColumn Header="LEVEL" Binding="{Binding StartLevel}" Width="90" />
-                                    <DataGridCheckBoxColumn Header="STOP" Binding="{Binding StopEnabled}" Width="80" />
-                                    <DataGridTextColumn Header="LEVEL" Binding="{Binding StopLevel}" Width="90" />
-                                    <DataGridTemplateColumn Header="DEBOUNCE (MS)" Width="120">
+                                    <DataGridTextColumn Header="GPI PORT" Binding="{Binding Port}" Width="75" IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="TextAlignment" Value="Center" />
+                                                <Setter Property="VerticalAlignment" Value="Center" />
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridCheckBoxColumn Header="START" Binding="{Binding StartEnabled}" Width="70">
+                                        <DataGridCheckBoxColumn.ElementStyle>
+                                            <Style TargetType="CheckBox">
+                                                <Setter Property="HorizontalAlignment" Value="Center" />
+                                                <Setter Property="VerticalAlignment" Value="Center" />
+                                            </Style>
+                                        </DataGridCheckBoxColumn.ElementStyle>
+                                    </DataGridCheckBoxColumn>
+                                    <DataGridTextColumn Header="LEVEL" Binding="{Binding StartLevel}" Width="80">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="TextAlignment" Value="Center" />
+                                                <Setter Property="VerticalAlignment" Value="Center" />
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridCheckBoxColumn Header="STOP" Binding="{Binding StopEnabled}" Width="70">
+                                        <DataGridCheckBoxColumn.ElementStyle>
+                                            <Style TargetType="CheckBox">
+                                                <Setter Property="HorizontalAlignment" Value="Center" />
+                                                <Setter Property="VerticalAlignment" Value="Center" />
+                                            </Style>
+                                        </DataGridCheckBoxColumn.ElementStyle>
+                                    </DataGridCheckBoxColumn>
+                                    <DataGridTextColumn Header="LEVEL" Binding="{Binding StopLevel}" Width="80">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="TextAlignment" Value="Center" />
+                                                <Setter Property="VerticalAlignment" Value="Center" />
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTemplateColumn Header="DEBOUNCE (MS)" Width="105">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <TextBox Text="{Binding DebounceMs}" IsEnabled="{Binding IsDebounceEnabled}" VerticalAlignment="Center" />
@@ -276,6 +308,8 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Mode:" Style="{StaticResource FieldLabelStyle}" />
@@ -301,7 +335,43 @@
                             <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Filter1Offset}" Margin="0,0,6,6" />
                             <TextBox Grid.Row="5" Grid.Column="2" Text="{Binding Filter2Offset}" Margin="6,0,0,6" />
 
-                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Memory Bank:" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Target:" Style="{StaticResource FieldLabelStyle}" Visibility="{Binding SupportsStateAwareFiltersVisibility}" />
+                            <ComboBox Grid.Row="7" Grid.Column="1" Text="{Binding Filter1Target}" IsEditable="True" Margin="0,0,6,6" Visibility="{Binding SupportsStateAwareFiltersVisibility}">
+                                <ComboBoxItem Content="Selected Flag" />
+                                <ComboBoxItem Content="Session0" />
+                                <ComboBoxItem Content="Session1" />
+                                <ComboBoxItem Content="Session2" />
+                                <ComboBoxItem Content="Session3" />
+                            </ComboBox>
+                            <ComboBox Grid.Row="7" Grid.Column="2" Text="{Binding Filter2Target}" IsEditable="True" Margin="6,0,0,6" Visibility="{Binding SupportsStateAwareFiltersVisibility}">
+                                <ComboBoxItem Content="Selected Flag" />
+                                <ComboBoxItem Content="Session0" />
+                                <ComboBoxItem Content="Session1" />
+                                <ComboBoxItem Content="Session2" />
+                                <ComboBoxItem Content="Session3" />
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="8" Grid.Column="0" Text="Action:" Style="{StaticResource FieldLabelStyle}" Visibility="{Binding SupportsStateAwareFiltersVisibility}" />
+                            <ComboBox Grid.Row="8" Grid.Column="1" Text="{Binding Filter1Action}" IsEditable="True" Margin="0,0,6,6" Visibility="{Binding SupportsStateAwareFiltersVisibility}">
+                                <ComboBoxItem Content="Assert A/Deassert B" />
+                                <ComboBoxItem Content="Assert A/No Op" />
+                                <ComboBoxItem Content="No Op/Deassert B" />
+                                <ComboBoxItem Content="Negate/No Op" />
+                                <ComboBoxItem Content="Deassert B/Assert A" />
+                                <ComboBoxItem Content="Deassert B/No Op" />
+                                <ComboBoxItem Content="No Op/Assert A" />
+                                <ComboBoxItem Content="No Op/Negate" />
+                            </ComboBox>
+                            <ComboBox Grid.Row="8" Grid.Column="2" Text="{Binding Filter2Action}" IsEditable="True" Margin="6,0,0,6" Visibility="{Binding SupportsStateAwareFiltersVisibility}">
+                                <ComboBoxItem Content="Assert A/Deassert B" />
+                                <ComboBoxItem Content="Assert A/No Op" />
+                                <ComboBoxItem Content="No Op/Deassert B" />
+                                <ComboBoxItem Content="Negate/No Op" />
+                                <ComboBoxItem Content="Deassert B/Assert A" />
+                                <ComboBoxItem Content="Deassert B/No Op" />
+                                <ComboBoxItem Content="No Op/Assert A" />
+                                <ComboBoxItem Content="No Op/Negate" />
+                            </ComboBox>
                             <ComboBox Grid.Row="6" Grid.Column="1" Text="{Binding Filter1MemoryBank}" IsEditable="True" Margin="0,0,6,6">
                                 <ComboBoxItem Content="EPC" />
                                 <ComboBoxItem Content="TID" />
@@ -371,34 +441,59 @@
                             </Grid>
                         </DockPanel>
                     </Border>
-
-                    <Border Style="{StaticResource SectionBorderStyle}">
-                        <DockPanel>
-                            <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeaderStyle}">
-                                <TextBlock Text="GPO CONTROL" Style="{StaticResource SectionHeaderTextStyle}" />
-                            </Border>
-                            <UniformGrid Columns="2" Margin="8">
-                                <StackPanel Orientation="Horizontal" Margin="0,0,20,8">
-                                    <mah:ToggleSwitch IsOn="{Binding Gpo1, Mode=TwoWay}" OnContent="" OffContent="" />
-                                    <TextBlock Text="GPO 1" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,20,8">
-                                    <mah:ToggleSwitch IsOn="{Binding Gpo2, Mode=TwoWay}" OnContent="" OffContent="" />
-                                    <TextBlock Text="GPO 2" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                                    <mah:ToggleSwitch IsOn="{Binding Gpo3, Mode=TwoWay}" OnContent="" OffContent="" />
-                                    <TextBlock Text="GPO 3" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                                    <mah:ToggleSwitch IsOn="{Binding Gpo4, Mode=TwoWay}" OnContent="" OffContent="" />
-                                    <TextBlock Text="GPO 4" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                </StackPanel>
-                            </UniformGrid>
-                        </DockPanel>
-                    </Border>
                 </StackPanel>
-            </Grid>
-        </ScrollViewer>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Diagnostics">
+                <Border Style="{StaticResource SectionBorderStyle}"
+                        Margin="0,12,0,0"
+                        Width="520"
+                        MaxWidth="520"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeaderStyle}">
+                            <TextBlock Text="GPO CONTROL" Style="{StaticResource SectionHeaderTextStyle}" />
+                        </Border>
+                        <UniformGrid Columns="2" Rows="2" Margin="12,10,12,4">
+                            <StackPanel Orientation="Horizontal" Margin="4,0,20,10" VerticalAlignment="Center">
+                                <mah:ToggleSwitch IsOn="{Binding Gpo1, Mode=TwoWay}"
+                                                  OnContent=""
+                                                  OffContent=""
+                                                  MinWidth="44"
+                                                  VerticalAlignment="Center" />
+                                <TextBlock Text="GPO 1" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="4,0,4,10" VerticalAlignment="Center">
+                                <mah:ToggleSwitch IsOn="{Binding Gpo2, Mode=TwoWay}"
+                                                  OnContent=""
+                                                  OffContent=""
+                                                  MinWidth="44"
+                                                  VerticalAlignment="Center" />
+                                <TextBlock Text="GPO 2" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="4,0,20,10" VerticalAlignment="Center">
+                                <mah:ToggleSwitch IsOn="{Binding Gpo3, Mode=TwoWay}"
+                                                  OnContent=""
+                                                  OffContent=""
+                                                  MinWidth="44"
+                                                  VerticalAlignment="Center" />
+                                <TextBlock Text="GPO 3" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="4,0,4,10" VerticalAlignment="Center">
+                                <mah:ToggleSwitch IsOn="{Binding Gpo4, Mode=TwoWay}"
+                                                  OnContent=""
+                                                  OffContent=""
+                                                  MinWidth="44"
+                                                  VerticalAlignment="Center" />
+                                <TextBlock Text="GPO 4" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </StackPanel>
+                        </UniformGrid>
+                    </DockPanel>
+                </Border>
+            </TabItem>
+        </TabControl>
     </DockPanel>
 </UserControl>

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LlrpReaderStudio.Core;
@@ -57,6 +58,9 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private bool isIndividualAntennasExpanded;
 
     [ObservableProperty]
+    private bool isGlobalAntennaSettingsEnabled = true;
+
+    [ObservableProperty]
     private string rfMode = "0";
 
     [ObservableProperty]
@@ -111,7 +115,26 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private string filter1MemoryBank = "EPC";
 
     [ObservableProperty]
+    private string filter1Target = "Session0";
+
+    [ObservableProperty]
+    private string filter1Action = "Assert A/Deassert B";
+
+    [ObservableProperty]
     private string filter2MemoryBank = "EPC";
+
+    [ObservableProperty]
+    private string filter2Target = "Session0";
+
+    [ObservableProperty]
+    private string filter2Action = "Assert A/Deassert B";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SupportsStateAwareFiltersVisibility))]
+    private bool supportsStateAwareFilters;
+
+    public Visibility SupportsStateAwareFiltersVisibility =>
+        SupportsStateAwareFilters ? Visibility.Visible : Visibility.Collapsed;
 
     [ObservableProperty]
     private string filter1Option = "Match";
@@ -253,8 +276,23 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         }
     }
 
-    partial void OnIsIndividualAntennasExpandedChanged(bool value) =>
+    partial void OnIsIndividualAntennasExpandedChanged(bool value)
+    {
         UseIndividualAntennaSettings = value;
+        // In per-antenna mode the outer (all-antenna) power/sensitivity fields are disabled.
+        IsGlobalAntennaSettingsEnabled = !value;
+        if (value)
+        {
+            // Rows initialize from the all-antenna values when expanded. When the expansion is driven
+            // by a reader read-back, the per-antenna loop that follows overwrites the rows with the
+            // actual per-antenna values, so this only seeds rows on a manual expansion.
+            foreach (AntennaSettingsRow row in AntennaSettings)
+            {
+                row.TxPower = PowerDbm;
+                row.RxSensitivity = RxSensitivity;
+            }
+        }
+    }
 
     [RelayCommand]
     private async Task QuerySettingsAsync()
@@ -414,6 +452,7 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         ushort modeIndex = ParseModeIndex(RfMode);
 
         List<InventoryAntennaConfiguration> antennaConfigurations = BuildAntennaConfigurations(antennaIds, hopTableId);
+        IReadOnlyList<InventorySelectFilter> filters = BuildFiltersFromUi();
         IReadOnlyDictionary<string, object?> extensions = BuildInventoryExtensions(baseInventory.Extensions);
 
         InventorySettings inventory = baseInventory with
@@ -425,7 +464,11 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             ReportEveryNTags = reportEvery,
             Report = baseInventory.Report with { Trigger = InventoryReportTrigger.UponNTagsOrEndOfAiSpec },
             ModeIndex = modeIndex,
-            Filters = BuildFiltersFromUi(),
+            Filters = filters,
+            // State-aware filters require an explicit state-aware singulation on readers that support it.
+            StateAwareSingulation = filters.Any(static filter => filter.StateAwareAction is not null)
+                ? new InventoryStateAwareSingulation()
+                : null,
             StartTrigger = BuildStartTrigger(),
             StopTrigger = BuildStopTrigger(),
             Extensions = extensions,
@@ -551,8 +594,8 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private IReadOnlyList<InventorySelectFilter> BuildFiltersFromUi()
     {
         var filters = new List<InventorySelectFilter>(2);
-        AddFilter(filters, Filter1, Filter1BitLength, Filter1Offset, Filter1MemoryBank);
-        AddFilter(filters, Filter2, Filter2BitLength, Filter2Offset, Filter2MemoryBank);
+        AddFilter(filters, Filter1, Filter1BitLength, Filter1Offset, Filter1MemoryBank, Filter1Target, Filter1Action);
+        AddFilter(filters, Filter2, Filter2BitLength, Filter2Offset, Filter2MemoryBank, Filter2Target, Filter2Action);
         return filters;
     }
 
@@ -561,14 +604,16 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         string value,
         string bitLength,
         string offset,
-        string memoryBank)
+        string memoryBank,
+        string target,
+        string action)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
             return;
         }
 
-        filters.Add(new InventorySelectFilter
+        InventorySelectFilter filter = new()
         {
             MemoryBank = ParseMemoryBank(memoryBank),
             BitPointer = ParseUShort(offset, "Filter offset"),
@@ -576,8 +621,66 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             BitLength = ParseUShort(bitLength, "Filter bit length"),
             MatchAction = InventorySelectAction.Select,
             NonMatchAction = InventorySelectAction.Unselect,
-        });
+        };
+
+        // State-aware filters are only valid on readers that advertise state-aware singulation support;
+        // the compiler also requires StateAwareSingulation (set in BuildSettingsFromUi).
+        if (!target.Trim().Equals("Selected Flag", StringComparison.OrdinalIgnoreCase))
+        {
+            filter = filter with
+            {
+                StateAwareAction = new InventoryStateAwareFilterAction
+                {
+                    Target = ParseFilterTarget(target),
+                    Action = ParseFilterAction(action),
+                },
+            };
+        }
+
+        filters.Add(filter);
     }
+
+    private static InventoryFilterTarget ParseFilterTarget(string value) => value.Trim() switch
+    {
+        "Selected Flag" => InventoryFilterTarget.SelectedFlag,
+        "Session1" => InventoryFilterTarget.Session1,
+        "Session2" => InventoryFilterTarget.Session2,
+        "Session3" => InventoryFilterTarget.Session3,
+        _ => InventoryFilterTarget.Session0,
+    };
+
+    private static string FormatFilterTarget(InventoryFilterTarget target) => target switch
+    {
+        InventoryFilterTarget.SelectedFlag => "Selected Flag",
+        InventoryFilterTarget.Session1 => "Session1",
+        InventoryFilterTarget.Session2 => "Session2",
+        InventoryFilterTarget.Session3 => "Session3",
+        _ => "Session0",
+    };
+
+    private static InventoryFilterAction ParseFilterAction(string value) => value.Trim() switch
+    {
+        "Assert A/No Op" => InventoryFilterAction.AssertSelectedOrStateAAndNoOperation,
+        "No Op/Deassert B" => InventoryFilterAction.NoOperationAndDeassertSelectedOrStateB,
+        "Negate/No Op" => InventoryFilterAction.NegateSelectedOrStateAndNoOperation,
+        "Deassert B/Assert A" => InventoryFilterAction.DeassertSelectedOrStateBAndAssertSelectedOrStateA,
+        "Deassert B/No Op" => InventoryFilterAction.DeassertSelectedOrStateBAndNoOperation,
+        "No Op/Assert A" => InventoryFilterAction.NoOperationAndAssertSelectedOrStateA,
+        "No Op/Negate" => InventoryFilterAction.NoOperationAndNegateSelectedOrState,
+        _ => InventoryFilterAction.AssertSelectedOrStateAAndDeassertSelectedOrStateB,
+    };
+
+    private static string FormatFilterAction(InventoryFilterAction action) => action switch
+    {
+        InventoryFilterAction.AssertSelectedOrStateAAndNoOperation => "Assert A/No Op",
+        InventoryFilterAction.NoOperationAndDeassertSelectedOrStateB => "No Op/Deassert B",
+        InventoryFilterAction.NegateSelectedOrStateAndNoOperation => "Negate/No Op",
+        InventoryFilterAction.DeassertSelectedOrStateBAndAssertSelectedOrStateA => "Deassert B/Assert A",
+        InventoryFilterAction.DeassertSelectedOrStateBAndNoOperation => "Deassert B/No Op",
+        InventoryFilterAction.NoOperationAndAssertSelectedOrStateA => "No Op/Assert A",
+        InventoryFilterAction.NoOperationAndNegateSelectedOrState => "No Op/Negate",
+        _ => "Assert A/Deassert B",
+    };
 
     private static ushort ParseMemoryBank(string value) => value.Trim().ToUpperInvariant() switch
     {
@@ -761,6 +864,8 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             rfModeLinkByModeId[mode.ModeIdentifier] = FormatRfModeLink(mode);
         }
 
+        SupportsStateAwareFilters = capabilities.CanDoTagInventoryStateAwareSingulation;
+
         // Restore selections that are still present in the (possibly rebuilt) option lists.
         if (txPowerIndexesByDisplay.ContainsKey(preservedTxPower))
         {
@@ -917,8 +1022,6 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             IsIndividualAntennasExpanded = inventory.AntennaConfigurations.Count > 0;
         }
 
-        string? firstTxPower = null;
-        string? firstRxSensitivity = null;
         for (int i = 0; i < AntennaSettings.Count; i++)
         {
             AntennaSettingsRow row = AntennaSettings[i];
@@ -932,26 +1035,12 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             if (configuration.TransmitPowerIndex is ushort txPower)
             {
                 row.TxPower = FormatTxPowerIndex(txPower);
-                firstTxPower ??= row.TxPower;
             }
 
             if (configuration.ReceiverSensitivityIndex is ushort rxSensitivity)
             {
                 row.RxSensitivity = FormatRxSensitivityIndex(rxSensitivity);
-                firstRxSensitivity ??= row.RxSensitivity;
             }
-        }
-
-        // The reader exposes per-antenna configurations; surface the first antenna's values in the
-        // global fields so they are not left on stale defaults (for example 30 dBm) after a reload.
-        if (firstTxPower is not null)
-        {
-            PowerDbm = firstTxPower;
-        }
-
-        if (firstRxSensitivity is not null)
-        {
-            RxSensitivity = firstRxSensitivity;
         }
 
         // Antennas without a per-antenna configuration inherit the global baseline so a later save in
@@ -1003,11 +1092,23 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         Filter1BitLength = filters.Count > 0 ? filters[0].BitLength.ToString(CultureInfo.InvariantCulture) : "0";
         Filter1Offset = filters.Count > 0 ? filters[0].BitPointer.ToString(CultureInfo.InvariantCulture) : "32";
         Filter1MemoryBank = filters.Count > 0 ? FormatMemoryBank(filters[0].MemoryBank) : "EPC";
+        Filter1Target = filters.Count > 0 && filters[0].StateAwareAction is { } action1
+            ? FormatFilterTarget(action1.Target)
+            : "Session0";
+        Filter1Action = filters.Count > 0 && filters[0].StateAwareAction is { } action1b
+            ? FormatFilterAction(action1b.Action)
+            : "Assert A/Deassert B";
 
         Filter2 = filters.Count > 1 ? FormatFilterMask(filters[1]) : string.Empty;
         Filter2BitLength = filters.Count > 1 ? filters[1].BitLength.ToString(CultureInfo.InvariantCulture) : "0";
         Filter2Offset = filters.Count > 1 ? filters[1].BitPointer.ToString(CultureInfo.InvariantCulture) : "32";
         Filter2MemoryBank = filters.Count > 1 ? FormatMemoryBank(filters[1].MemoryBank) : "EPC";
+        Filter2Target = filters.Count > 1 && filters[1].StateAwareAction is { } action2
+            ? FormatFilterTarget(action2.Target)
+            : "Session0";
+        Filter2Action = filters.Count > 1 && filters[1].StateAwareAction is { } action2b
+            ? FormatFilterAction(action2b.Action)
+            : "Assert A/Deassert B";
     }
 
     private static string FormatFilterMask(InventorySelectFilter filter) =>
