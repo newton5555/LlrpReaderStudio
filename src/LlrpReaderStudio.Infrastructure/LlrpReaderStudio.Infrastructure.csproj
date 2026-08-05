@@ -5,11 +5,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LlrpReaderStudio.Core\LlrpReaderStudio.Core.csproj" />
-    <ProjectReference Include="..\..\..\LLRPCSharp\src\LlrpSdk.Extensions.Abstractions\LlrpSdk.Extensions.Abstractions.csproj" />
-    <ProjectReference Include="..\..\..\LLRPCSharp\src\LlrpSdk.Extensions.Impinj\LlrpSdk.Extensions.Impinj.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="LlrpSdk" />
+    <PackageReference Include="LlrpSdk.Extensions.Impinj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Zeroconf" />

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LlrpReaderStudio.Core;
 using LlrpReaderStudio.Infrastructure.Data;
+using LlrpNet.Protocol.Impinj.Enumerations.V1_0_1;
 using LlrpSdk;
 using LlrpSdk.Extensions.Impinj;
 
@@ -19,6 +20,11 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private readonly Dictionary<string, ushort> rxSensitivityIndexesByDisplay = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<ushort, string> txPowerDisplaysByIndex = [];
     private readonly Dictionary<ushort, string> rxSensitivityDisplaysByIndex = [];
+    private IReadOnlyList<TxPowerEntry> txPowerEntries = Array.Empty<TxPowerEntry>();
+    private IReadOnlyList<RxSensitivityEntry> rxSensitivityEntries = Array.Empty<RxSensitivityEntry>();
+    private ushort? maxRxSensitivityIndex;
+    private string? maxRxSensitivityDisplay;
+    private ushort maxAntennas = 4;
 
     [ObservableProperty]
     private string settingsOrigin = "No reader settings loaded";
@@ -48,10 +54,16 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private bool useIndividualAntennaSettings;
 
     [ObservableProperty]
-    private string rfMode = "Auto Set Dense Reader Deep Scan";
+    private bool isIndividualAntennasExpanded;
 
     [ObservableProperty]
-    private string searchMode = "Dual Target";
+    private string rfMode = "0";
+
+    [ObservableProperty]
+    private string searchMode = "Reader Selected";
+
+    [ObservableProperty]
+    private bool impinjExtensionsAvailable = true;
 
     [ObservableProperty]
     private bool enableFastId;
@@ -69,10 +81,7 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private string powerDbm = "30";
 
     [ObservableProperty]
-    private string rxSensitivity = "-80";
-
-    [ObservableProperty]
-    private bool enableMaxSensitivity = true;
+    private string rxSensitivity = "0";
 
     [ObservableProperty]
     private string filterMode = "None";
@@ -118,6 +127,12 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
     [ObservableProperty]
     private string useSpecifiedFrequencies = "Disabled";
+
+    [ObservableProperty]
+    private string frequencyChannels = string.Empty;
+
+    [ObservableProperty]
+    private bool isFrequencyChannelsEnabled;
 
     [ObservableProperty]
     private bool lowDutyCycleEnabled;
@@ -197,17 +212,17 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             if (inventory is not null)
             {
                 settingsDraft = snapshot.Settings with { Inventory = inventory };
-                ApplyInventoryToUi(inventory);
+                ApplySettingsToUi(settingsDraft);
                 SettingsOrigin = $"Loaded from reader at {DateTime.Now:HH:mm:ss}";
                 StatusMessage = $"{reader.Name}: Loaded current reader settings.";
                 return;
             }
 
-            InventorySettings? saved = await inventoryPresets.LoadDefaultAsync(reader.Id, cancellationToken);
+            ReaderSettings? saved = await inventoryPresets.LoadDefaultAsync(reader.Id, cancellationToken);
             if (saved is not null)
             {
-                settingsDraft = new ReaderSettings { Inventory = saved };
-                ApplyInventoryToUi(saved);
+                settingsDraft = saved;
+                ApplySettingsToUi(settingsDraft);
                 SettingsOrigin = "Loaded from local history";
                 StatusMessage = $"{reader.Name}: No reader inventory was found; loaded local history.";
                 return;
@@ -215,10 +230,7 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
             ReaderSettingsDefaults defaults = await fleet.GetDefaultSettingsAsync(reader.Id, cancellationToken);
             settingsDraft = defaults.Settings;
-            if (defaults.Settings.Inventory is not null)
-            {
-                ApplyInventoryToUi(defaults.Settings.Inventory);
-            }
+            ApplySettingsToUi(settingsDraft);
 
             SettingsOrigin = "SDK defaults";
             StatusMessage = $"{reader.Name}: No reader inventory or local history was found; loaded SDK defaults.";
@@ -241,6 +253,9 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         }
     }
 
+    partial void OnIsIndividualAntennasExpandedChanged(bool value) =>
+        UseIndividualAntennaSettings = value;
+
     [RelayCommand]
     private async Task QuerySettingsAsync()
     {
@@ -255,10 +270,7 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             await EnsureConnectedAndLoadCapabilitiesAsync(readerId);
             ReaderSettingsSnapshot snapshot = await fleet.QuerySettingsAsync(readerId, CancellationToken.None);
             settingsDraft = snapshot.Settings;
-            if ((snapshot.Inventory?.Settings ?? snapshot.Settings.Inventory) is InventorySettings inventory)
-            {
-                ApplyInventoryToUi(inventory);
-            }
+            ApplySettingsToUi(settingsDraft);
             SettingsOrigin = $"Queried from {SelectedReaderName} at {DateTime.Now:HH:mm:ss}";
             StatusMessage = $"{SelectedReaderName}: Settings queried successfully.";
         }
@@ -282,10 +294,7 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             await EnsureConnectedAndLoadCapabilitiesAsync(readerId);
             ReaderSettingsDefaults defaults = await fleet.GetDefaultSettingsAsync(readerId, CancellationToken.None);
             settingsDraft = defaults.Settings;
-            if (defaults.Settings.Inventory is InventorySettings inventory)
-            {
-                ApplyInventoryToUi(inventory);
-            }
+            ApplySettingsToUi(settingsDraft);
             SettingsOrigin = $"SDK Defaults for {SelectedReaderName}";
             StatusMessage = $"{SelectedReaderName}: SDK default settings loaded.";
         }
@@ -314,12 +323,10 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         {
             StatusMessage = $"{SelectedReaderName}: Connecting before applying settings...";
             await EnsureConnectedAndLoadCapabilitiesAsync(readerId);
-            ReaderSettings settings = BuildSettingsFromUi();
+            ushort? hopTableId = fleet.GetCapabilities(readerId)?.HopTables.FirstOrDefault()?.HopTableId;
+            ReaderSettings settings = BuildSettingsFromUi(hopTableId);
             await fleet.ApplySettingsAsync(readerId, settings, CancellationToken.None);
-            if (settings.Inventory is not null)
-            {
-                await inventoryPresets.SaveDefaultAsync(readerId, settings.Inventory, CancellationToken.None);
-            }
+            await inventoryPresets.SaveDefaultAsync(readerId, settings, CancellationToken.None);
             settingsDraft = settings;
             SettingsOrigin = $"Saved to reader at {DateTime.Now:HH:mm:ss}";
             StatusMessage = $"{SelectedReaderName}: Settings saved to reader and local history.";
@@ -396,17 +403,17 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         }
     }
 
-    private ReaderSettings BuildSettingsFromUi()
+    private ReaderSettings BuildSettingsFromUi(ushort? hopTableId)
     {
         InventorySettings baseInventory = settingsDraft?.Inventory ?? new InventorySettings();
+        ReaderSettings baseSettings = settingsDraft ?? new ReaderSettings();
         ushort[] antennaIds = ParseAntennaIds(Antennas);
         byte session = ParseSession(Session);
         ushort population = ParseUShort(Population, nameof(Population));
         ushort reportEvery = ParseUShort(ReportEvery, nameof(ReportEvery));
         ushort modeIndex = ParseModeIndex(RfMode);
 
-        List<InventoryAntennaConfiguration> antennaConfigurations = BuildAntennaConfigurations(antennaIds);
-
+        List<InventoryAntennaConfiguration> antennaConfigurations = BuildAntennaConfigurations(antennaIds, hopTableId);
         IReadOnlyDictionary<string, object?> extensions = BuildInventoryExtensions(baseInventory.Extensions);
 
         InventorySettings inventory = baseInventory with
@@ -418,34 +425,214 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             ReportEveryNTags = reportEvery,
             Report = baseInventory.Report with { Trigger = InventoryReportTrigger.UponNTagsOrEndOfAiSpec },
             ModeIndex = modeIndex,
+            Filters = BuildFiltersFromUi(),
+            StartTrigger = BuildStartTrigger(),
+            StopTrigger = BuildStopTrigger(),
             Extensions = extensions,
         };
 
-        return (settingsDraft ?? new ReaderSettings()) with { Inventory = inventory };
+        return baseSettings with
+        {
+            Inventory = inventory,
+            Configuration = baseSettings.Configuration with
+            {
+                Extensions = BuildReaderExtensions(baseSettings.Configuration.Extensions),
+            },
+        };
     }
 
     private IReadOnlyDictionary<string, object?> BuildInventoryExtensions(IReadOnlyDictionary<string, object?> source)
     {
         var extensions = new Dictionary<string, object?>(source, StringComparer.Ordinal);
-        if (EnableFastId)
+        ImpinjInventoryReportOptions existing =
+            extensions.TryGetValue(ImpinjInventoryReportOptions.ExtensionKey, out object? value) &&
+            value is ImpinjInventoryReportOptions options
+                ? options
+                : new ImpinjInventoryReportOptions();
+        ImpinjInventoryReportOptions requested = existing with
         {
-            extensions[ImpinjInventoryReportOptions.ExtensionKey] =
-                extensions.TryGetValue(ImpinjInventoryReportOptions.ExtensionKey, out object? value) &&
-                value is ImpinjInventoryReportOptions existing
-                    ? existing with { IncludeSerializedTid = true }
-                    : new ImpinjInventoryReportOptions { IncludeSerializedTid = true };
-        }
-        else
+            IncludeSerializedTid = EnableFastId,
+            IncludeRfPhaseAngle = ReportPhaseAngle,
+            IncludeRfDopplerFrequency = ReportDopplerFrequency,
+        };
+
+        if (EnableFastId || ReportPhaseAngle || ReportDopplerFrequency ||
+            extensions.ContainsKey(ImpinjInventoryReportOptions.ExtensionKey))
         {
-            extensions.Remove(ImpinjInventoryReportOptions.ExtensionKey);
+            extensions[ImpinjInventoryReportOptions.ExtensionKey] = requested;
         }
+
+        // Search Mode is an inventory-command extension (ImpinjInventorySearchMode is allowed in
+        // C1G2InventoryCommand), so it travels with the inventory settings rather than reader config.
+        ImpinjInventoryControlOptions existingControl =
+            extensions.TryGetValue(ImpinjInventoryControlOptions.ExtensionKey, out object? controlValue) &&
+            controlValue is ImpinjInventoryControlOptions controlOptions
+                ? controlOptions
+                : new ImpinjInventoryControlOptions();
+        ImpinjInventoryControlOptions requestedControl = existingControl with
+        {
+            InventorySearchMode = ParseSearchMode(SearchMode),
+        };
+        extensions[ImpinjInventoryControlOptions.ExtensionKey] = requestedControl;
 
         return extensions.Count == 0
             ? new InventorySettings().Extensions
             : new System.Collections.ObjectModel.ReadOnlyDictionary<string, object?>(extensions);
     }
 
-    private List<InventoryAntennaConfiguration> BuildAntennaConfigurations(ushort[] antennaIds)
+    private IReadOnlyDictionary<string, object?> BuildReaderExtensions(IReadOnlyDictionary<string, object?> source)
+    {
+        var extensions = new Dictionary<string, object?>(source, StringComparer.Ordinal);
+
+        // Only the fields the UI manages are sent. Fields echoed back from a query (AccessSpec,
+        // AdvancedGpos, LinkMonitor, ReportBufferMode, ReducedPowerFrequency) are left null/empty so
+        // SET_READER_CONFIG does not carry parameters some firmware rejects (M_UnsupportedParameter).
+        ImpinjReaderConfiguration requested = new()
+        {
+            FixedFrequency = BuildFixedFrequency(),
+            LowDutyCycle = LowDutyCycleEnabled
+                ? new ImpinjLowDutyCycleSettings(
+                    ImpinjLowDutyCycleMode.Enabled,
+                    ParseUShort(EmptyFieldTimeoutMs, nameof(EmptyFieldTimeoutMs)),
+                    ParseUShort(FieldPingIntervalMs, nameof(FieldPingIntervalMs)))
+                : null,
+            GpiDebounce = HasGpiConfiguration()
+                ? GpiSettings
+                    .Select(static row => new ImpinjGpiDebounceSetting((ushort)row.Port, ParseDebounceMs(row.DebounceMs)))
+                    .ToArray()
+                : [],
+        };
+        extensions[ImpinjReaderConfiguration.ExtensionKey] = requested;
+
+        return extensions.Count == 0
+            ? new ReaderSettings().Extensions
+            : new System.Collections.ObjectModel.ReadOnlyDictionary<string, object?>(extensions);
+    }
+
+    private bool HasGpiConfiguration() =>
+        GpiSettings.Any(static row => row.StartEnabled || row.StopEnabled);
+
+    private ImpinjFixedFrequencySettings? BuildFixedFrequency() =>
+        UseSpecifiedFrequencies.ToUpperInvariant() switch
+        {
+            "CHANNEL LIST" => new ImpinjFixedFrequencySettings(
+                ImpinjFixedFrequencyMode.Channel_List,
+                ParseChannelList(FrequencyChannels)),
+            "AUTO SELECT" => new ImpinjFixedFrequencySettings(ImpinjFixedFrequencyMode.Auto_Select, []),
+            _ => null,
+        };
+
+    private static IReadOnlyList<ushort> ParseChannelList(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Array.Empty<ushort>();
+        }
+
+        return value
+            .Split([',', ';', ' '], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => ParseUShort(part, "Channel"))
+            .ToArray();
+    }
+
+    private static ImpinjInventorySearchType? ParseSearchMode(string value) =>
+        value.Trim() switch
+        {
+            "" or "Reader Selected" => null,
+            "Single Target" => ImpinjInventorySearchType.Single_Target,
+            "Dual Target" => ImpinjInventorySearchType.Dual_Target,
+            "TagFocus" => ImpinjInventorySearchType.Single_Target_With_Suppression,
+            "No Target" => ImpinjInventorySearchType.No_Target,
+            "Single Target Reset" => ImpinjInventorySearchType.Single_Target_BtoA,
+            "Dual Target Select B to A" => ImpinjInventorySearchType.Dual_Target_with_BtoASelect,
+            _ => null,
+        };
+
+    private IReadOnlyList<InventorySelectFilter> BuildFiltersFromUi()
+    {
+        var filters = new List<InventorySelectFilter>(2);
+        AddFilter(filters, Filter1, Filter1BitLength, Filter1Offset, Filter1MemoryBank);
+        AddFilter(filters, Filter2, Filter2BitLength, Filter2Offset, Filter2MemoryBank);
+        return filters;
+    }
+
+    private static void AddFilter(
+        List<InventorySelectFilter> filters,
+        string value,
+        string bitLength,
+        string offset,
+        string memoryBank)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        filters.Add(new InventorySelectFilter
+        {
+            MemoryBank = ParseMemoryBank(memoryBank),
+            BitPointer = ParseUShort(offset, "Filter offset"),
+            Mask = HexCodec.ParseBytes(value),
+            BitLength = ParseUShort(bitLength, "Filter bit length"),
+            MatchAction = InventorySelectAction.Select,
+            NonMatchAction = InventorySelectAction.Unselect,
+        });
+    }
+
+    private static ushort ParseMemoryBank(string value) => value.Trim().ToUpperInvariant() switch
+    {
+        "RESERVED" => 0,
+        "TID" => 2,
+        "USER" => 3,
+        _ => 1,
+    };
+
+    private InventoryStartTrigger BuildStartTrigger()
+    {
+        GpiSettingsRow? row = GpiSettings.FirstOrDefault(static setting => setting.StartEnabled);
+        if (row is null)
+        {
+            return new InventoryStartTrigger();
+        }
+
+        return new InventoryStartTrigger
+        {
+            Type = InventoryStartTriggerType.Gpi,
+            GpiPortNumber = (ushort)row.Port,
+            GpiState = IsHighLevel(row.StartLevel),
+        };
+    }
+
+    private InventoryStopTrigger BuildStopTrigger()
+    {
+        GpiSettingsRow? row = GpiSettings.FirstOrDefault(static setting => setting.StopEnabled);
+        if (row is null)
+        {
+            return new InventoryStopTrigger();
+        }
+
+        return new InventoryStopTrigger
+        {
+            Type = InventoryStopTriggerType.GpiWithTimeout,
+            GpiPortNumber = (ushort)row.Port,
+            GpiState = IsHighLevel(row.StopLevel),
+        };
+    }
+
+    private static bool IsHighLevel(string level) =>
+        level.Trim().Equals("High", StringComparison.OrdinalIgnoreCase);
+
+    private static uint ParseDebounceMs(string value)
+    {
+        if (!uint.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint result))
+        {
+            throw new InvalidOperationException("GPI debounce must be a non-negative number of milliseconds.");
+        }
+
+        return result;
+    }
+
+    private List<InventoryAntennaConfiguration> BuildAntennaConfigurations(ushort[] antennaIds, ushort? hopTableId)
     {
         bool selectsAllAntennas = antennaIds.Length == 1 && antennaIds[0] == 0;
         HashSet<ushort> selected = antennaIds.ToHashSet();
@@ -454,21 +641,17 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         if (!UseIndividualAntennaSettings)
         {
             ushort? txPower = TryParseNullableTxPowerIndex(PowerDbm);
-            ushort? rxSensitivity = TryParseNullableRxSensitivityIndex(RxSensitivity);
+            // A reader that exposes a sensitivity table always gets an RFReceiver; an empty or invalid
+            // sensitivity falls back to the most sensitive level instead of being cleared.
+            ushort? rxSensitivity = TryParseNullableRxSensitivityIndex(RxSensitivity) ?? maxRxSensitivityIndex;
             if (txPower is null && rxSensitivity is null)
             {
                 return antennaConfigurations;
             }
 
-            IEnumerable<ushort> targets = selectsAllAntennas
-                ? new[] { (ushort)0 }
-                : antennaIds;
-
-            foreach (ushort antennaId in targets)
-            {
-                antennaConfigurations.Add(CreateAntennaConfiguration(antennaId, txPower, rxSensitivity));
-            }
-
+            // AntennaId 0 applies this configuration to every antenna selected for inventory, so the
+            // power/sensitivity settings stay independent of which antennas are enabled.
+            antennaConfigurations.Add(CreateAntennaConfiguration(0, txPower, rxSensitivity, hopTableId));
             return antennaConfigurations;
         }
 
@@ -482,26 +665,35 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
             AntennaSettingsRow row = AntennaSettings[i];
             ushort? txPower = TryParseNullableTxPowerIndex(row.TxPower);
-            ushort? rxSensitivity = TryParseNullableRxSensitivityIndex(row.RxSensitivity);
+            ushort? rxSensitivity = TryParseNullableRxSensitivityIndex(row.RxSensitivity) ?? maxRxSensitivityIndex;
             if (txPower is null && rxSensitivity is null)
             {
                 continue;
             }
 
-            antennaConfigurations.Add(CreateAntennaConfiguration(antennaId, txPower, rxSensitivity));
+            antennaConfigurations.Add(CreateAntennaConfiguration(antennaId, txPower, rxSensitivity, hopTableId));
         }
 
         return antennaConfigurations;
     }
 
-    private static InventoryAntennaConfiguration CreateAntennaConfiguration(ushort antennaId, ushort? txPower, ushort? rxSensitivity)
+    private static InventoryAntennaConfiguration CreateAntennaConfiguration(
+        ushort antennaId,
+        ushort? txPower,
+        ushort? rxSensitivity,
+        ushort? hopTableId)
     {
         return new InventoryAntennaConfiguration
         {
             AntennaId = antennaId,
             ReceiverSensitivityIndex = rxSensitivity,
             TransmitPowerIndex = txPower,
-            HopTableId = txPower is null ? null : (ushort)1,
+            // The LLRP RFTransmitter requires a hop table reference together with power. Use the first
+            // hop table the reader actually reported when available; fall back to the conventional id 1.
+            // FrequencyInformation reports either a hop table list or a fixed frequency table (never both),
+            // so for fixed-frequency readers the Impinj FixedFrequencyList extension governs channels and
+            // this reference is ignored by the reader firmware.
+            HopTableId = hopTableId ?? (ushort)1,
             ChannelIndex = txPower is null ? null : (ushort)1,
         };
     }
@@ -520,8 +712,15 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
     private void RefreshOptions(ReaderCapabilities capabilities)
     {
+        // Remember the current UI values so a collection rebuild (which clears two-way bound ComboBox
+        // text back to the binding source) can restore the still-valid selection afterwards.
+        string preservedTxPower = PowerDbm;
+        string preservedRxSensitivity = RxSensitivity;
+        string preservedRfMode = RfMode;
+
         txPowerIndexesByDisplay.Clear();
         txPowerDisplaysByIndex.Clear();
+        txPowerEntries = capabilities.TxPowers;
         string[] txPowerOptions = capabilities.TxPowers
             .OrderBy(static value => value.TransmitPowerValue)
             .Select(FormatTxPowerOption)
@@ -530,18 +729,57 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
         rxSensitivityIndexesByDisplay.Clear();
         rxSensitivityDisplaysByIndex.Clear();
+        rxSensitivityEntries = capabilities.RxSensitivities;
         string[] rxSensitivityOptions = capabilities.RxSensitivities
             .OrderBy(static value => value.ReceiveSensitivityValue)
             .Select(FormatRxSensitivityOption)
             .ToArray();
         ReplaceOptions(RxSensitivityOptions, rxSensitivityOptions);
+        if (capabilities.RxSensitivities.Count > 0)
+        {
+            // The most sensitive entry is the one with the smallest (most negative) reported value.
+            RxSensitivityEntry mostSensitive = capabilities.RxSensitivities
+                .OrderBy(static value => value.ReceiveSensitivityValue)
+                .First();
+            maxRxSensitivityIndex = mostSensitive.Index;
+            maxRxSensitivityDisplay = FormatRxSensitivityIndex(mostSensitive.Index);
+        }
+        else
+        {
+            maxRxSensitivityIndex = null;
+            maxRxSensitivityDisplay = null;
+        }
 
         string[] rfModeOptions = capabilities.RfModes
-            .Select(static value => value.ModeIdentifier.ToString(CultureInfo.InvariantCulture))
+            .Select(static mode => $"{mode.ModeIdentifier}({FormatRfModeLink(mode)})")
             .ToArray();
         ReplaceOptions(RfModeOptions, rfModeOptions);
 
-        ushort maxAntennas = capabilities.MaxNumberOfAntennas == 0 ? (ushort)4 : capabilities.MaxNumberOfAntennas;
+        rfModeLinkByModeId.Clear();
+        foreach (C1G2RfModeEntry mode in capabilities.RfModes)
+        {
+            rfModeLinkByModeId[mode.ModeIdentifier] = FormatRfModeLink(mode);
+        }
+
+        // Restore selections that are still present in the (possibly rebuilt) option lists.
+        if (txPowerIndexesByDisplay.ContainsKey(preservedTxPower))
+        {
+            PowerDbm = preservedTxPower;
+        }
+
+        if (rxSensitivityIndexesByDisplay.ContainsKey(preservedRxSensitivity))
+        {
+            RxSensitivity = preservedRxSensitivity;
+        }
+
+        if (!string.IsNullOrEmpty(preservedRfMode) &&
+            rfModeLinkByModeId.ContainsKey(ParseModeIndex(preservedRfMode)))
+        {
+            RfMode = preservedRfMode;
+        }
+
+        ushort resolvedMaxAntennas = capabilities.MaxNumberOfAntennas == 0 ? (ushort)4 : capabilities.MaxNumberOfAntennas;
+        maxAntennas = resolvedMaxAntennas;
         bool shouldResetAntennas = string.IsNullOrWhiteSpace(Antennas);
         if (!shouldResetAntennas)
         {
@@ -570,6 +808,21 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         }
     }
 
+    private readonly Dictionary<uint, string> rfModeLinkByModeId = [];
+
+    private string FormatRfMode(uint mode) =>
+        rfModeLinkByModeId.TryGetValue(mode, out string? link)
+            ? $"{mode}({link})"
+            : mode.ToString(CultureInfo.InvariantCulture);
+
+    private static string FormatRfModeLink(C1G2RfModeEntry mode)
+    {
+        int bdrKbps = (int)(mode.BdrValue / 1000.0);
+        double tariUs = mode.MinTariValue / 1000.0;
+        double pieUs = mode.PieValue / 1000.0;
+        return $"M{mode.MValue}/{bdrKbps}K Tari: {tariUs:0.#} uS, (PIE: {pieUs:F1})";
+    }
+
     private static void ReplaceOptions(ObservableCollection<string> target, IEnumerable<string> values)
     {
         string[] nextValues = values
@@ -578,6 +831,14 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             .ToArray();
 
         if (nextValues.Length == 0)
+        {
+            return;
+        }
+
+        // Rebuilding the collection while a two-way bound ComboBox is open clears its Text back to the
+        // binding source (empty), so skip the rebuild when nothing actually changed.
+        if (nextValues.Length == target.Count &&
+            target.SequenceEqual(nextValues, StringComparer.OrdinalIgnoreCase))
         {
             return;
         }
@@ -599,7 +860,9 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
     private string FormatRxSensitivityOption(RxSensitivityEntry entry)
     {
-        string display = FormatDbm(entry.ReceiveSensitivityDbm);
+        // Show the raw capability value (0, 10, 11, ...) so the UI matches what the SDK exposes;
+        // the SDK's ReceiveSensitivityDbm (value/100) is an offset, not an absolute dBm.
+        string display = entry.ReceiveSensitivityValue.ToString(CultureInfo.InvariantCulture);
         rxSensitivityIndexesByDisplay[display] = entry.Index;
         rxSensitivityDisplaysByIndex[entry.Index] = display;
         return display;
@@ -609,18 +872,26 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
     private void ApplyInventoryToUi(InventorySettings inventory)
     {
-        Antennas = string.Join(", ", inventory.AntennaIds);
+        if (inventory.AntennaIds.Contains((ushort)0))
+        {
+            // AntennaIds 0 means "all antennas"; show the concrete list for the UI.
+            Antennas = string.Join(", ", Enumerable.Range(1, Math.Max(1, (int)maxAntennas)));
+        }
+        else
+        {
+            Antennas = string.Join(", ", inventory.AntennaIds);
+        }
+
         Session = $"Session {inventory.Session}";
         Population = inventory.TagPopulationEstimate.ToString(CultureInfo.InvariantCulture);
         ReportEvery = inventory.ReportEveryNTags.ToString(CultureInfo.InvariantCulture);
-        RfMode = inventory.ModeIndex == 0
-            ? RfMode
-            : inventory.ModeIndex.ToString(CultureInfo.InvariantCulture);
+        RfMode = FormatRfMode(inventory.ModeIndex);
 
         InventoryAntennaConfiguration? global = inventory.AntennaConfigurations.FirstOrDefault(static value => value.AntennaId == 0);
         if (global is not null)
         {
             UseIndividualAntennaSettings = false;
+            IsIndividualAntennasExpanded = false;
             if (global.TransmitPowerIndex is ushort txPower)
             {
                 PowerDbm = FormatTxPowerIndex(txPower);
@@ -630,32 +901,223 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             {
                 RxSensitivity = FormatRxSensitivityIndex(rxSensitivity);
             }
+
+            // A single AntennaId-0 configuration applies to every inventory antenna; mirror it into
+            // the per-antenna rows so expanding and saving in per-antenna mode keeps the same values.
+            foreach (AntennaSettingsRow row in AntennaSettings)
+            {
+                row.TxPower = PowerDbm;
+                row.RxSensitivity = RxSensitivity;
+            }
         }
-        else if (inventory.AntennaConfigurations.Count > 0)
+        else
         {
-            UseIndividualAntennaSettings = true;
+            UseIndividualAntennaSettings = inventory.AntennaConfigurations.Count > 0;
+            // Per-antenna configurations on the reader expand the per-antenna editor.
+            IsIndividualAntennasExpanded = inventory.AntennaConfigurations.Count > 0;
         }
 
-        foreach (InventoryAntennaConfiguration configuration in inventory.AntennaConfigurations.Where(static value => value.AntennaId > 0))
+        string? firstTxPower = null;
+        string? firstRxSensitivity = null;
+        for (int i = 0; i < AntennaSettings.Count; i++)
         {
-            int index = configuration.AntennaId - 1;
-            if (index < 0 || index >= AntennaSettings.Count)
+            AntennaSettingsRow row = AntennaSettings[i];
+            InventoryAntennaConfiguration? configuration = inventory.AntennaConfigurations
+                .FirstOrDefault(candidate => candidate.AntennaId == i + 1);
+            if (configuration is null)
             {
                 continue;
             }
 
-            AntennaSettingsRow row = AntennaSettings[index];
             if (configuration.TransmitPowerIndex is ushort txPower)
             {
                 row.TxPower = FormatTxPowerIndex(txPower);
+                firstTxPower ??= row.TxPower;
             }
 
             if (configuration.ReceiverSensitivityIndex is ushort rxSensitivity)
             {
                 row.RxSensitivity = FormatRxSensitivityIndex(rxSensitivity);
+                firstRxSensitivity ??= row.RxSensitivity;
+            }
+        }
+
+        // The reader exposes per-antenna configurations; surface the first antenna's values in the
+        // global fields so they are not left on stale defaults (for example 30 dBm) after a reload.
+        if (firstTxPower is not null)
+        {
+            PowerDbm = firstTxPower;
+        }
+
+        if (firstRxSensitivity is not null)
+        {
+            RxSensitivity = firstRxSensitivity;
+        }
+
+        // Antennas without a per-antenna configuration inherit the global baseline so a later save in
+        // per-antenna mode writes the same power/sensitivity instead of stale row defaults.
+        for (int i = 0; i < AntennaSettings.Count; i++)
+        {
+            if (inventory.AntennaConfigurations.Any(candidate => candidate.AntennaId == i + 1))
+            {
+                continue;
+            }
+
+            AntennaSettingsRow row = AntennaSettings[i];
+            row.TxPower = PowerDbm;
+            row.RxSensitivity = RxSensitivity;
+        }
+
+        ApplyFiltersToUi(inventory.Filters);
+        ApplyGpiTriggersToUi(inventory.StartTrigger, inventory.StopTrigger);
+        ApplyInventoryReportOptionsToUi(inventory.Extensions);
+        ApplyInventoryControlToUi(inventory.Extensions);
+    }
+
+    private void ApplyInventoryControlToUi(IReadOnlyDictionary<string, object?> extensions)
+    {
+        ImpinjInventoryControlOptions? control =
+            extensions.TryGetValue(ImpinjInventoryControlOptions.ExtensionKey, out object? value) &&
+            value is ImpinjInventoryControlOptions controlOptions
+                ? controlOptions
+                : null;
+        SearchMode = control?.InventorySearchMode is { } mode
+            ? FormatSearchMode(mode)
+            : "Reader Selected";
+    }
+
+    private void ApplySettingsToUi(ReaderSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        if (settings.Inventory is InventorySettings inventory)
+        {
+            ApplyInventoryToUi(inventory);
+        }
+
+        ApplyReaderConfigurationToUi(settings.Configuration.Extensions);
+    }
+
+    private void ApplyFiltersToUi(IReadOnlyList<InventorySelectFilter> filters)
+    {
+        Filter1 = filters.Count > 0 ? FormatFilterMask(filters[0]) : string.Empty;
+        Filter1BitLength = filters.Count > 0 ? filters[0].BitLength.ToString(CultureInfo.InvariantCulture) : "0";
+        Filter1Offset = filters.Count > 0 ? filters[0].BitPointer.ToString(CultureInfo.InvariantCulture) : "32";
+        Filter1MemoryBank = filters.Count > 0 ? FormatMemoryBank(filters[0].MemoryBank) : "EPC";
+
+        Filter2 = filters.Count > 1 ? FormatFilterMask(filters[1]) : string.Empty;
+        Filter2BitLength = filters.Count > 1 ? filters[1].BitLength.ToString(CultureInfo.InvariantCulture) : "0";
+        Filter2Offset = filters.Count > 1 ? filters[1].BitPointer.ToString(CultureInfo.InvariantCulture) : "32";
+        Filter2MemoryBank = filters.Count > 1 ? FormatMemoryBank(filters[1].MemoryBank) : "EPC";
+    }
+
+    private static string FormatFilterMask(InventorySelectFilter filter) =>
+        filter.Mask.IsEmpty ? string.Empty : Convert.ToHexString(filter.Mask.Span);
+
+    private static string FormatMemoryBank(ushort bank) => bank switch
+    {
+        0 => "Reserved",
+        2 => "TID",
+        3 => "User",
+        _ => "EPC",
+    };
+
+    private void ApplyGpiTriggersToUi(InventoryStartTrigger start, InventoryStopTrigger stop)
+    {
+        foreach (GpiSettingsRow row in GpiSettings)
+        {
+            bool isStart = start.Type == InventoryStartTriggerType.Gpi && start.GpiPortNumber == row.Port;
+            bool isStop = stop.Type == InventoryStopTriggerType.GpiWithTimeout && stop.GpiPortNumber == row.Port;
+            row.StartEnabled = isStart;
+            row.StartLevel = isStart && start.GpiState ? "High" : "Low";
+            row.StopEnabled = isStop;
+            row.StopLevel = isStop && stop.GpiState ? "High" : "Low";
+        }
+    }
+
+    private void ApplyInventoryReportOptionsToUi(IReadOnlyDictionary<string, object?> extensions)
+    {
+        ImpinjInventoryReportOptions? options =
+            extensions.TryGetValue(ImpinjInventoryReportOptions.ExtensionKey, out object? value) &&
+            value is ImpinjInventoryReportOptions reportOptions
+                ? reportOptions
+                : null;
+        EnableFastId = options?.IncludeSerializedTid ?? false;
+        ReportPhaseAngle = options?.IncludeRfPhaseAngle ?? false;
+        ReportDopplerFrequency = options?.IncludeRfDopplerFrequency ?? false;
+    }
+
+    private void ApplyReaderConfigurationToUi(IReadOnlyDictionary<string, object?> extensions)
+    {
+        // The Impinj reader configuration is only real when the reader actually reported the
+        // impinj.configuration extension; otherwise the Search Mode / frequency / low duty cycle /
+        // GPI debounce controls would show stale defaults, so they are disabled instead.
+        bool available =
+            extensions.TryGetValue(ImpinjReaderConfiguration.ExtensionKey, out object? value) &&
+            value is ImpinjReaderConfiguration;
+        ImpinjExtensionsAvailable = available;
+        foreach (GpiSettingsRow row in GpiSettings)
+        {
+            row.IsDebounceEnabled = available;
+        }
+
+        if (!available || value is not ImpinjReaderConfiguration configuration)
+        {
+            return;
+        }
+
+        LowDutyCycleEnabled = configuration.LowDutyCycle?.Mode == ImpinjLowDutyCycleMode.Enabled;
+        if (configuration.LowDutyCycle is { } lowDutyCycle)
+        {
+            EmptyFieldTimeoutMs = lowDutyCycle.EmptyFieldTimeoutMilliseconds.ToString(CultureInfo.InvariantCulture);
+            FieldPingIntervalMs = lowDutyCycle.FieldPingIntervalMilliseconds.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (configuration.FixedFrequency is { } fixedFrequency)
+        {
+            UseSpecifiedFrequencies = fixedFrequency.Mode switch
+            {
+                ImpinjFixedFrequencyMode.Channel_List => "Channel List",
+                ImpinjFixedFrequencyMode.Auto_Select => "Auto Select",
+                _ => "Disabled",
+            };
+            FrequencyChannels = fixedFrequency.Mode == ImpinjFixedFrequencyMode.Channel_List
+                ? string.Join(", ", fixedFrequency.ChannelList)
+                : string.Empty;
+        }
+        else
+        {
+            UseSpecifiedFrequencies = "Disabled";
+            FrequencyChannels = string.Empty;
+        }
+
+        foreach (ImpinjGpiDebounceSetting debounce in configuration.GpiDebounce)
+        {
+            GpiSettingsRow? row = GpiSettings.FirstOrDefault(candidate => candidate.Port == debounce.GpiPortNumber);
+            if (row is not null)
+            {
+                row.DebounceMs = debounce.DebounceMilliseconds.ToString(CultureInfo.InvariantCulture);
             }
         }
     }
+
+    private static string FormatSearchMode(ImpinjInventorySearchType? mode) => mode switch
+    {
+        ImpinjInventorySearchType.Single_Target => "Single Target",
+        ImpinjInventorySearchType.Dual_Target => "Dual Target",
+        ImpinjInventorySearchType.Single_Target_With_Suppression => "TagFocus",
+        ImpinjInventorySearchType.No_Target => "No Target",
+        ImpinjInventorySearchType.Single_Target_BtoA => "Single Target Reset",
+        ImpinjInventorySearchType.Dual_Target_with_BtoASelect => "Dual Target Select B to A",
+        _ => "Reader Selected",
+    };
+
+    partial void OnUseSpecifiedFrequenciesChanged(string value) => UpdateFrequencyChannelsEnabled();
+
+    partial void OnImpinjExtensionsAvailableChanged(bool value) => UpdateFrequencyChannelsEnabled();
+
+    private void UpdateFrequencyChannelsEnabled() =>
+        IsFrequencyChannelsEnabled = ImpinjExtensionsAvailable &&
+            UseSpecifiedFrequencies.Equals("Channel List", StringComparison.OrdinalIgnoreCase);
 
     private string FormatTxPowerIndex(ushort index) =>
         txPowerDisplaysByIndex.TryGetValue(index, out string? display)
@@ -667,6 +1129,21 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             ? display
             : index.ToString(CultureInfo.InvariantCulture);
 
+    [RelayCommand]
+    private void FillAllAntennas()
+    {
+        if (maxAntennas == 0)
+        {
+            return;
+        }
+
+        Antennas = string.Join(", ", Enumerable.Range(1, maxAntennas)
+            .Select(static value => value.ToString(CultureInfo.InvariantCulture)));
+    }
+
+    [RelayCommand]
+    private void ClearAntennas() => Antennas = string.Empty;
+
     private static ushort[] ParseAntennaIds(string value)
     {
         ushort[] ids = value
@@ -674,7 +1151,12 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             .Select(part => ParseUShort(part, "Antennas"))
             .ToArray();
 
-        return ids.Length == 0 ? [0] : ids;
+        if (ids.Length == 0)
+        {
+            throw new InvalidOperationException("Antennas must not be empty; use ALL to select every antenna.");
+        }
+
+        return ids;
     }
 
     private static byte ParseSession(string value)
@@ -692,7 +1174,8 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private static ushort ParseModeIndex(string value)
     {
         string firstToken = value.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "0";
-        return ushort.TryParse(firstToken, NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort result)
+        string digits = new string(firstToken.TakeWhile(char.IsDigit).ToArray());
+        return ushort.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort result)
             ? result
             : (ushort)0;
     }
@@ -715,9 +1198,20 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             return index;
         }
 
-        return ushort.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort result)
-            ? result
-            : null;
+        // The UI edits dBm values, never raw table indexes; an unmatched free-form value is resolved
+        // against the capability table by nearest dBm instead of being sent as an index.
+        if (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out double dbm))
+        {
+            TxPowerEntry? nearest = txPowerEntries
+                .OrderBy(entry => Math.Abs(entry.TransmitPowerDbm - dbm))
+                .FirstOrDefault();
+            if (nearest is not null)
+            {
+                return nearest.Index;
+            }
+        }
+
+        return null;
     }
 
     private ushort? TryParseNullableRxSensitivityIndex(string value)
@@ -728,9 +1222,18 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             return index;
         }
 
-        return ushort.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort result)
-            ? result
-            : null;
+        if (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsedValue))
+        {
+            RxSensitivityEntry? nearest = rxSensitivityEntries
+                .OrderBy(entry => Math.Abs(entry.ReceiveSensitivityValue - parsedValue))
+                .FirstOrDefault();
+            if (nearest is not null)
+            {
+                return nearest.Index;
+            }
+        }
+
+        return null;
     }
 }
 
@@ -740,7 +1243,7 @@ public sealed partial class AntennaSettingsRow : ObservableObject
     private string txPower = "30";
 
     [ObservableProperty]
-    private string rxSensitivity = "-80";
+    private string rxSensitivity = "0";
 
     public AntennaSettingsRow(string name)
     {
@@ -766,6 +1269,9 @@ public sealed partial class GpiSettingsRow : ObservableObject
 
     [ObservableProperty]
     private string debounceMs = "20";
+
+    [ObservableProperty]
+    private bool isDebounceEnabled = true;
 
     public GpiSettingsRow(int port)
     {

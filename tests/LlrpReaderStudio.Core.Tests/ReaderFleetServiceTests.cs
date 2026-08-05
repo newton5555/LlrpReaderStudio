@@ -106,6 +106,8 @@ public sealed class ReaderFleetServiceTests
             return Task.CompletedTask;
         }
 
+        public Task StartConfiguredInventoryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Task StopInventoryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<TagAccessResult> ReadTagMemoryAsync(ReadTagRequest request, CancellationToken cancellationToken) =>
             Task.FromException<TagAccessResult>(new NotSupportedException());

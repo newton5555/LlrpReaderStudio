@@ -4,8 +4,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\LLRPCSharp\src\LlrpSdk\LlrpSdk.csproj" />
-    <ProjectReference Include="..\..\..\LLRPCSharp\src\LlrpSdk.Extensions.Impinj\LlrpSdk.Extensions.Impinj.csproj" />
+    <PackageReference Include="LlrpSdk" />
+    <PackageReference Include="LlrpSdk.Extensions.Impinj" />
   </ItemGroup>
 
   <ItemGroup>

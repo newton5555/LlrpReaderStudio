@@ -64,7 +64,26 @@ internal sealed class LlrpReaderSession : IReaderSession
     public ReaderCapabilities? Capabilities => reader.Capabilities;
     public event EventHandler<StudioTagReportEventArgs>? TagReported;
 
-    public Task ConnectAsync(CancellationToken cancellationToken) => reader.ConnectAsync(cancellationToken);
+    public async Task ConnectAsync(CancellationToken cancellationToken)
+    {
+        await reader.ConnectAsync(cancellationToken).ConfigureAwait(false);
+        // A failed managed operation (for example ApplySettingsAsync) marks the SDK-managed state as
+        // unknown; resynchronize so the next managed call does not throw
+        // "SDK-managed reader state is unknown after raw protocol access".
+        if (!reader.IsManagedStateSynchronized)
+        {
+            await reader.SynchronizeStateAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task SynchronizeIfNeededAsync(CancellationToken cancellationToken)
+    {
+        if (!reader.IsManagedStateSynchronized)
+        {
+            await reader.SynchronizeStateAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     public async Task DisconnectAsync(CancellationToken cancellationToken)
     {
         try
@@ -76,12 +95,24 @@ internal sealed class LlrpReaderSession : IReaderSession
             inventorySession = null;
         }
     }
-    public Task<ReaderSettingsSnapshot> QuerySettingsAsync(CancellationToken cancellationToken) =>
-        reader.QuerySettingsAsync(cancellationToken);
-    public Task<ReaderSettingsDefaults> GetDefaultSettingsAsync(CancellationToken cancellationToken) =>
-        reader.GetDefaultSettingsAsync(cancellationToken);
-    public Task ApplySettingsAsync(ReaderSettings settings, CancellationToken cancellationToken) =>
-        reader.ApplySettingsAsync(settings, cancellationToken);
+
+    public async Task<ReaderSettingsSnapshot> QuerySettingsAsync(CancellationToken cancellationToken)
+    {
+        await SynchronizeIfNeededAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.QuerySettingsAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<ReaderSettingsDefaults> GetDefaultSettingsAsync(CancellationToken cancellationToken)
+    {
+        await SynchronizeIfNeededAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.GetDefaultSettingsAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ApplySettingsAsync(ReaderSettings settings, CancellationToken cancellationToken)
+    {
+        await SynchronizeIfNeededAsync(cancellationToken).ConfigureAwait(false);
+        await reader.ApplySettingsAsync(settings, cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task StartInventoryAsync(InventorySettings settings, CancellationToken cancellationToken)
     {
@@ -90,6 +121,7 @@ internal sealed class LlrpReaderSession : IReaderSession
             throw new InvalidOperationException("Inventory is already running for this reader.");
         }
 
+        await SynchronizeIfNeededAsync(cancellationToken).ConfigureAwait(false);
         inventorySession = await reader.StartInventoryAsync(settings, cancellationToken).ConfigureAwait(false);
     }
 
@@ -100,6 +132,7 @@ internal sealed class LlrpReaderSession : IReaderSession
             throw new InvalidOperationException("Inventory is already running for this reader.");
         }
 
+        await SynchronizeIfNeededAsync(cancellationToken).ConfigureAwait(false);
         inventorySession = await reader.StartInventoryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -108,6 +141,7 @@ internal sealed class LlrpReaderSession : IReaderSession
         InventorySession? session = inventorySession;
         if (session is null)
         {
+            await SynchronizeIfNeededAsync(cancellationToken).ConfigureAwait(false);
             await reader.StopAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -116,14 +150,23 @@ internal sealed class LlrpReaderSession : IReaderSession
         await session.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<TagAccessResult> ReadTagMemoryAsync(ReadTagRequest request, CancellationToken cancellationToken) =>
-        reader.ReadTagMemoryAsync(request, TimeSpan.FromSeconds(5), cancellationToken);
+    public async Task<TagAccessResult> ReadTagMemoryAsync(ReadTagRequest request, CancellationToken cancellationToken)
+    {
+        await SynchronizeIfNeededAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadTagMemoryAsync(request, TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+    }
 
-    public Task<TagAccessResult> WriteTagMemoryAsync(WriteTagRequest request, CancellationToken cancellationToken) =>
-        reader.WriteTagMemoryAsync(request, TimeSpan.FromSeconds(5), cancellationToken);
+    public async Task<TagAccessResult> WriteTagMemoryAsync(WriteTagRequest request, CancellationToken cancellationToken)
+    {
+        await SynchronizeIfNeededAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.WriteTagMemoryAsync(request, TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+    }
 
-    public Task SetGpoAsync(ushort portNumber, bool state, CancellationToken cancellationToken) =>
-        reader.SetGpoAsync(portNumber, state, cancellationToken);
+    public async Task SetGpoAsync(ushort portNumber, bool state, CancellationToken cancellationToken)
+    {
+        await SynchronizeIfNeededAsync(cancellationToken).ConfigureAwait(false);
+        await reader.SetGpoAsync(portNumber, state, cancellationToken).ConfigureAwait(false);
+    }
 
     public async ValueTask DisposeAsync()
     {

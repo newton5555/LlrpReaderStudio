@@ -205,3 +205,15 @@ TagReport.Extensions["impinj.serializedTid"] as IReadOnlyList<ushort>
 - 如果要支持 attached data/TID read，应放在单独配置项，不要和表格 TID 列显示绑定。
 - 如果要让已部署 ROSpec 在设备端长期保留，需要明确设备断开后的资源生命周期，不要依赖 UI 状态推断。
 - 表格列显示状态目前是内存状态；如需持久化，可加 `AppSettingEntity` 或单独 UI settings repository。
+
+
+
+
+## SDK 接口同步（待办，2026-08-04 记录）
+
+SDK（LLRPCSharp，2026-08 P0 修复后）已新增便捷成员，本仓库当前仍用手写等价逻辑，后续替换：
+
+- `TagReport.EpcHex`（普通属性）——替换 `HexCodec.FormatBytes(report.ElectronicProductCode)`（`TagAggregation.cs:25`）
+- `ImpinjTagReportExtensions.SerializedTidHex`（C# 14 扩展属性，命名空间 `LlrpSdk.Extensions.Impinj`）——替换 `FormatAttachedReadData`（`TagAggregation.cs:55-66`）
+
+两者与现有手写逻辑逐位等价（`Extensions["impinj.serializedTid"] as IReadOnlyList<ushort>` + `X4` 拼接）。替换时需 `using LlrpSdk.Extensions.Impinj;`（`DataSourceSettingsViewModel` 已 using）。SDK 通过 ProjectReference（`..\..\..\LLRPCSharp\src\...`）引用，编译即最新，无需等 NuGet 发布。替换后建议在真实 WPF 应用中顺带验证 C# 14 扩展属性可用性（本项目 `LangVersion=latest`，`TreatWarningsAsErrors=true`）。

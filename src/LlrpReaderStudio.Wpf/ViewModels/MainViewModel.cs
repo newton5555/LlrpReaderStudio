@@ -78,6 +78,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         this.fleet.TagObserved += OnTagObserved;
 
         InventoryVM.ToggleInventoryRequested += OnToggleInventoryRequested;
+        InventoryVM.ClearTagsRequested += OnClearTagsRequested;
         AddDataSourceVM.DataSourceSubmitted += OnAddDataSourceSubmitted;
         AddDataSourceVM.CancelRequested += OnCancelToInventoryRequested;
         DataSourceSettingsVM.CancelRequested += OnCancelToInventoryRequested;
@@ -490,6 +491,16 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         _ = ToggleInventoryAsync();
     }
 
+    private void OnClearTagsRequested()
+    {
+        if (isDisposing)
+        {
+            return;
+        }
+
+        fleet.ClearTags();
+    }
+
     private async Task StartReaderInventoryAsync(ReaderItemViewModel reader)
     {
         InventorySettings settings = await ResolveInventorySettingsForStartAsync(reader);
@@ -499,10 +510,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private async Task<InventorySettings> ResolveInventorySettingsForStartAsync(ReaderItemViewModel reader)
     {
-        InventorySettings? saved = await inventoryPresets.LoadDefaultAsync(reader.Id, CancellationToken.None);
-        if (saved is not null)
+        ReaderSettings? saved = await inventoryPresets.LoadDefaultAsync(reader.Id, CancellationToken.None);
+        if (saved?.Inventory is { } inventory)
         {
-            return saved;
+            return inventory;
         }
 
         try
@@ -540,6 +551,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         fleet.ReaderStatusChanged -= OnReaderStatusChanged;
         fleet.TagObserved -= OnTagObserved;
         InventoryVM.ToggleInventoryRequested -= OnToggleInventoryRequested;
+        InventoryVM.ClearTagsRequested -= OnClearTagsRequested;
         AddDataSourceVM.DataSourceSubmitted -= OnAddDataSourceSubmitted;
         AddDataSourceVM.CancelRequested -= OnCancelToInventoryRequested;
         DataSourceSettingsVM.CancelRequested -= OnCancelToInventoryRequested;

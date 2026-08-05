@@ -7,6 +7,7 @@ using LlrpReaderStudio.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace LlrpReaderStudio;
 
@@ -31,16 +32,26 @@ public partial class App : Application
 
     private static void ConfigureServices(IServiceCollection services)
     {
-        // Logging Infrastructure
+        // Logging Infrastructure: Debug (VS output window) + rolling file under %AppData%\LlrpReaderStudio\logs.
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string logDirectory = Path.Combine(appData, "LlrpReaderStudio", "logs");
+        Directory.CreateDirectory(logDirectory);
         services.AddLogging(builder =>
         {
             builder.SetMinimumLevel(LogLevel.Debug);
+            builder.AddDebug();
+            builder.AddSerilog(new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.File(
+                    Path.Combine(logDirectory, "studio-.log"),
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 14)
+                .CreateLogger());
         });
 
         // Infrastructure & Core Services
         services.AddDbContextFactory<StudioDbContext>(options =>
         {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string dataDirectory = Path.Combine(appData, "LlrpReaderStudio");
             Directory.CreateDirectory(dataDirectory);
             options.UseSqlite($"Data Source={Path.Combine(dataDirectory, "studio.db")}");

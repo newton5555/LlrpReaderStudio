@@ -71,7 +71,6 @@
             <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top">
                 <Button Content="REFRESH SETTINGS" Command="{Binding QuerySettingsCommand}" Margin="4,0,0,0" />
                 <Button Content="LOAD DEFAULTS" Command="{Binding DefaultSettingsCommand}" Margin="4,0,0,0" />
-                <Button Content="APPLY" Command="{Binding ApplySettingsCommand}" Margin="4,0,0,0" />
             </WrapPanel>
         </Grid>
 
@@ -84,7 +83,7 @@
 
             <Button Grid.Column="0" Content="SAVE" Command="{Binding ApplySettingsCommand}" Width="180" Margin="0,0,8,0" />
             <Button Grid.Column="1" Content="CANCEL" Command="{Binding CancelCommand}" Width="180" Margin="0,0,12,0" />
-            <TextBlock Grid.Column="2" Text="{Binding StatusMessage}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="5,0,0,0" />
+            <TextBox Grid.Column="2" Text="{Binding StatusMessage}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="5,0,0,0" IsReadOnly="True" BorderThickness="0" Background="Transparent" />
         </Grid>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,0,12">
@@ -119,8 +118,8 @@
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Antennas:" Style="{StaticResource FieldLabelStyle}" />
                             <DockPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,6">
                                 <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
-                                    <Button Content="ALL" Width="60" Margin="0,0,6,0" />
-                                    <Button Content="CLEAR" Width="70" />
+                                    <Button Content="ALL" Width="60" Margin="0,0,6,0" Command="{Binding FillAllAntennasCommand}" />
+                                    <Button Content="CLEAR" Width="70" Command="{Binding ClearAntennasCommand}" />
                                 </StackPanel>
                                 <TextBox Text="{Binding Antennas, UpdateSourceTrigger=PropertyChanged}" />
                             </DockPanel>
@@ -129,8 +128,14 @@
                             <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RfModeOptions}" Text="{Binding RfMode}" IsEditable="True" Style="{StaticResource FieldControlStyle}" />
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Search Mode:" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox Grid.Row="2" Grid.Column="1" Text="{Binding SearchMode}" IsEditable="True" Style="{StaticResource FieldControlStyle}">
+                            <ComboBox Grid.Row="2" Grid.Column="1" Text="{Binding SearchMode}" IsEditable="True" IsEnabled="{Binding ImpinjExtensionsAvailable}" Style="{StaticResource FieldControlStyle}">
+                                <ComboBoxItem Content="Reader Selected" />
+                                <ComboBoxItem Content="Single Target" />
                                 <ComboBoxItem Content="Dual Target" />
+                                <ComboBoxItem Content="TagFocus" />
+                                <ComboBoxItem Content="No Target" />
+                                <ComboBoxItem Content="Single Target Reset" />
+                                <ComboBoxItem Content="Dual Target Select B to A" />
                             </ComboBox>
 
                             <TextBlock Grid.Row="3" Grid.Column="0" Text="Enable Fast ID:" Style="{StaticResource FieldLabelStyle}" />
@@ -161,7 +166,7 @@
                             <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeaderStyle}">
                                 <TextBlock Text="POWER AND SENSITIVITY SETTINGS" Style="{StaticResource SectionHeaderTextStyle}" />
                             </Border>
-                            <Grid Margin="8">
+                            <Grid DockPanel.Dock="Top" Margin="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="160" />
                                 <ColumnDefinition Width="*" />
@@ -177,50 +182,47 @@
 
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Rx Sensitivity:" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RxSensitivityOptions}" Text="{Binding RxSensitivity}" IsEditable="True" Style="{StaticResource FieldControlStyle}" />
-
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Enable Max Sensitivity:" Style="{StaticResource FieldLabelStyle}" />
-                            <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding EnableMaxSensitivity}" />
                             </Grid>
+
+                            <Expander DockPanel.Dock="Top" IsExpanded="{Binding IsIndividualAntennasExpanded, Mode=TwoWay}" Margin="8,0,8,8">
+                                <Expander.Header>
+                                    <Border Style="{StaticResource SectionHeaderStyle}" MinWidth="280">
+                                        <TextBlock Text="INDIVIDUAL ANTENNAS" Style="{StaticResource SectionHeaderTextStyle}" />
+                                    </Border>
+                                </Expander.Header>
+                                <Border BorderBrush="{DynamicResource MahApps.Brushes.Accent}" BorderThickness="1">
+                                    <ItemsControl ItemsSource="{Binding AntennaSettings}" Margin="8">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:AntennaSettingsRow}">
+                                                <Grid Margin="0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="140" />
+                                                        <ColumnDefinition Width="110" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="120" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Text="Tx Power Index:" VerticalAlignment="Center" />
+                                                    <ComboBox Grid.Column="2"
+                                                              ItemsSource="{Binding DataContext.TxPowerOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                              Text="{Binding TxPower}"
+                                                              IsEditable="True"
+                                                              Margin="0,0,12,0" />
+                                                    <TextBlock Grid.Column="3" Text="Rx Sensitivity:" VerticalAlignment="Center" />
+                                                    <ComboBox Grid.Column="4"
+                                                              ItemsSource="{Binding DataContext.RxSensitivityOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                              Text="{Binding RxSensitivity}"
+                                                              IsEditable="True" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                            </Expander>
                         </DockPanel>
                     </Border>
-
-                    <Expander IsExpanded="{Binding UseIndividualAntennaSettings, Mode=TwoWay}" Margin="0,0,10,10">
-                        <Expander.Header>
-                            <Border Style="{StaticResource SectionHeaderStyle}" MinWidth="280">
-                                <TextBlock Text="INDIVIDUAL ANTENNAS" Style="{StaticResource SectionHeaderTextStyle}" />
-                            </Border>
-                        </Expander.Header>
-                        <Border BorderBrush="{DynamicResource MahApps.Brushes.Accent}" BorderThickness="1">
-                            <ItemsControl ItemsSource="{Binding AntennaSettings}" Margin="8">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type vm:AntennaSettingsRow}">
-                                        <Grid Margin="0,4">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="140" />
-                                                <ColumnDefinition Width="110" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="120" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="Tx Power Index:" VerticalAlignment="Center" />
-                                            <ComboBox Grid.Column="2"
-                                                      ItemsSource="{Binding DataContext.TxPowerOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                      Text="{Binding TxPower}"
-                                                      IsEditable="True"
-                                                      Margin="0,0,12,0" />
-                                            <TextBlock Grid.Column="3" Text="Rx Sensitivity:" VerticalAlignment="Center" />
-                                            <ComboBox Grid.Column="4"
-                                                      ItemsSource="{Binding DataContext.RxSensitivityOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                      Text="{Binding RxSensitivity}"
-                                                      IsEditable="True" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Border>
-                    </Expander>
 
                     <Border Style="{StaticResource SectionBorderStyle}">
                         <DockPanel>
@@ -241,7 +243,13 @@
                                     <DataGridTextColumn Header="LEVEL" Binding="{Binding StartLevel}" Width="90" />
                                     <DataGridCheckBoxColumn Header="STOP" Binding="{Binding StopEnabled}" Width="80" />
                                     <DataGridTextColumn Header="LEVEL" Binding="{Binding StopLevel}" Width="90" />
-                                    <DataGridTextColumn Header="DEBOUNCE (MS)" Binding="{Binding DebounceMs}" Width="120" />
+                                    <DataGridTemplateColumn Header="DEBOUNCE (MS)" Width="120">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding DebounceMs}" IsEnabled="{Binding IsDebounceEnabled}" VerticalAlignment="Center" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </DockPanel>
@@ -294,8 +302,18 @@
                             <TextBox Grid.Row="5" Grid.Column="2" Text="{Binding Filter2Offset}" Margin="6,0,0,6" />
 
                             <TextBlock Grid.Row="6" Grid.Column="0" Text="Memory Bank:" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox Grid.Row="6" Grid.Column="1" Text="{Binding Filter1MemoryBank}" IsEditable="True" Margin="0,0,6,6" />
-                            <ComboBox Grid.Row="6" Grid.Column="2" Text="{Binding Filter2MemoryBank}" IsEditable="True" Margin="6,0,0,6" />
+                            <ComboBox Grid.Row="6" Grid.Column="1" Text="{Binding Filter1MemoryBank}" IsEditable="True" Margin="0,0,6,6">
+                                <ComboBoxItem Content="EPC" />
+                                <ComboBoxItem Content="TID" />
+                                <ComboBoxItem Content="User" />
+                                <ComboBoxItem Content="Reserved" />
+                            </ComboBox>
+                            <ComboBox Grid.Row="6" Grid.Column="2" Text="{Binding Filter2MemoryBank}" IsEditable="True" Margin="6,0,0,6">
+                                <ComboBoxItem Content="EPC" />
+                                <ComboBoxItem Content="TID" />
+                                <ComboBoxItem Content="User" />
+                                <ComboBoxItem Content="Reserved" />
+                            </ComboBox>
                             </Grid>
                         </DockPanel>
                     </Border>
@@ -310,11 +328,19 @@
                                 <ColumnDefinition Width="180" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
                             <TextBlock Grid.Column="0" Text="Use Specified Frequencies:" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox Grid.Column="1" Text="{Binding UseSpecifiedFrequencies}" IsEditable="True" Style="{StaticResource FieldControlStyle}">
+                            <ComboBox Grid.Column="1" Text="{Binding UseSpecifiedFrequencies}" IsEditable="False" IsEnabled="{Binding ImpinjExtensionsAvailable}" Style="{StaticResource FieldControlStyle}">
                                 <ComboBoxItem Content="Disabled" />
+                                <ComboBoxItem Content="Auto Select" />
+                                <ComboBoxItem Content="Channel List" />
                             </ComboBox>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Channels:" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding FrequencyChannels}" IsEnabled="{Binding IsFrequencyChannelsEnabled}" Style="{StaticResource FieldControlStyle}" ToolTip="Comma-separated channel numbers, e.g. 1, 2, 3" />
                             </Grid>
                         </DockPanel>
                     </Border>
@@ -335,13 +361,13 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <CheckBox Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Content="Enable" IsChecked="{Binding LowDutyCycleEnabled}" Margin="0,0,0,8" />
+                            <CheckBox Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Content="Enable" IsChecked="{Binding LowDutyCycleEnabled}" IsEnabled="{Binding ImpinjExtensionsAvailable}" Margin="0,0,0,8" />
 
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Empty Field Timeout (ms):" Style="{StaticResource FieldLabelStyle}" />
-                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding EmptyFieldTimeoutMs}" Style="{StaticResource FieldControlStyle}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding EmptyFieldTimeoutMs}" IsEnabled="{Binding ImpinjExtensionsAvailable}" Style="{StaticResource FieldControlStyle}" />
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Field Ping Interval (ms):" Style="{StaticResource FieldLabelStyle}" />
-                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding FieldPingIntervalMs}" Style="{StaticResource FieldControlStyle}" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding FieldPingIntervalMs}" IsEnabled="{Binding ImpinjExtensionsAvailable}" Style="{StaticResource FieldControlStyle}" />
                             </Grid>
                         </DockPanel>
                     </Border>

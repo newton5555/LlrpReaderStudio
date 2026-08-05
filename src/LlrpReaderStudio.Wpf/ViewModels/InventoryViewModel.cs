@@ -69,6 +69,8 @@ public partial class InventoryViewModel : PageViewModelBase
 
     public event Action? ToggleInventoryRequested;
 
+    public event Action? ClearTagsRequested;
+
     public InventorySettings ApplyReportOptions(InventorySettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -97,12 +99,23 @@ public partial class InventoryViewModel : PageViewModelBase
     private void ClearTags()
     {
         Tags.Clear();
-        stopwatch.Reset();
+        if (IsInventoryRunning)
+        {
+            // Restart keeps the stopwatch running so the elapsed timer keeps counting from zero.
+            stopwatch.Restart();
+        }
+        else
+        {
+            stopwatch.Reset();
+        }
+
         ElapsedTimeText = "00:00:00.000";
         CurrentReadRate = 0;
         lastTotalReads = 0;
+        lastRateCheckTime = DateTimeOffset.UtcNow;
         ReadRateText = "0.000 reads/s";
         OnPropertyChanged(nameof(UniqueTagCount));
+        ClearTagsRequested?.Invoke();
     }
 
     public void OnTagObserved(TagObservation aggregate)

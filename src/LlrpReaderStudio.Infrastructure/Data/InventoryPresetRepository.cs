@@ -14,7 +14,7 @@ public sealed class InventoryPresetRepository
         this.dbContextFactory = dbContextFactory;
     }
 
-    public async Task<InventorySettings?> LoadDefaultAsync(Guid readerId, CancellationToken cancellationToken = default)
+    public async Task<ReaderSettings?> LoadDefaultAsync(Guid readerId, CancellationToken cancellationToken = default)
     {
         await using StudioDbContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await dbContext.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
@@ -27,10 +27,10 @@ public sealed class InventoryPresetRepository
 
         return entity is null
             ? null
-            : DeserializeInventorySettings(entity.SettingsJson);
+            : DeserializeReaderSettings(entity.SettingsJson);
     }
 
-    public async Task SaveDefaultAsync(Guid readerId, InventorySettings settings, CancellationToken cancellationToken = default)
+    public async Task SaveDefaultAsync(Guid readerId, ReaderSettings settings, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
         await using StudioDbContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
@@ -53,7 +53,7 @@ public sealed class InventoryPresetRepository
         }
 
         entity.SettingsJson = ReaderSettingsSerializer.SerializeToJson(
-            new ReaderSettings { Inventory = settings },
+            settings,
             [ImpinjReaderExtension.Instance]);
         entity.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -62,17 +62,15 @@ public sealed class InventoryPresetRepository
 
     private static string GetDefaultPresetName(Guid readerId) => $"reader:{readerId}:default";
 
-    private static InventorySettings DeserializeInventorySettings(string json)
+    private static ReaderSettings DeserializeReaderSettings(string json)
     {
         try
         {
-            return ReaderSettingsSerializer
-                .DeserializeFromJson(json, [ImpinjReaderExtension.Instance])
-                .Inventory ?? new InventorySettings();
+            return ReaderSettingsSerializer.DeserializeFromJson(json, [ImpinjReaderExtension.Instance]);
         }
         catch
         {
-            return InventorySettingsSerializer.DeserializeFromJson(json);
+            return new ReaderSettings { Inventory = InventorySettingsSerializer.DeserializeFromJson(json) };
         }
     }
 }

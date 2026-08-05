@@ -1,4 +1,5 @@
 using LlrpSdk;
+using LlrpSdk.Extensions.Impinj;
 
 namespace LlrpReaderStudio.Core;
 
@@ -52,18 +53,8 @@ public sealed class TagAggregateStore
         }
     }
 
-    private static string FormatAttachedReadData(TagReport report)
-    {
-        if (report.Extensions?.TryGetValue("impinj.serializedTid", out object? value) == true &&
-            value is IReadOnlyList<ushort> serializedTid &&
-            serializedTid.Count > 0)
-        {
-            return string.Concat(serializedTid.Select(static word =>
-                word.ToString("X4", System.Globalization.CultureInfo.InvariantCulture)));
-        }
-
-        return string.Empty;
-    }
+    private static string FormatAttachedReadData(TagReport report) =>
+        report.GetSerializedTidHex() ?? string.Empty;
 
     public IReadOnlyList<TagObservation> Snapshot()
     {
