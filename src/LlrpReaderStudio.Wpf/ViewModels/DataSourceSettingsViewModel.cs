@@ -97,7 +97,13 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private string filter1 = string.Empty;
 
     [ObservableProperty]
+    private bool filter1Enabled = true;
+
+    [ObservableProperty]
     private string filter2 = string.Empty;
+
+    [ObservableProperty]
+    private bool filter2Enabled = true;
 
     [ObservableProperty]
     private string filter1BitLength = "0";
@@ -124,6 +130,18 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private string filter2MemoryBank = "EPC";
 
     [ObservableProperty]
+    private string filter1MatchAction = "Select";
+
+    [ObservableProperty]
+    private string filter1NonMatchAction = "Unselect";
+
+    [ObservableProperty]
+    private string filter2MatchAction = "Select";
+
+    [ObservableProperty]
+    private string filter2NonMatchAction = "Unselect";
+
+    [ObservableProperty]
     private string filter2Target = "Session0";
 
     [ObservableProperty]
@@ -131,10 +149,26 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SupportsStateAwareFiltersVisibility))]
+    [NotifyPropertyChangedFor(nameof(EnableStateAwareFiltersVisibility))]
+    [NotifyPropertyChangedFor(nameof(NonStateAwareFiltersVisibility))]
     private bool supportsStateAwareFilters;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EnableStateAwareFiltersVisibility))]
+    [NotifyPropertyChangedFor(nameof(NonStateAwareFiltersVisibility))]
+    private bool enableStateAwareFilters;
 
     public Visibility SupportsStateAwareFiltersVisibility =>
         SupportsStateAwareFilters ? Visibility.Visible : Visibility.Collapsed;
+
+    // State-aware Target/Action rows are visible only while the state-aware switch is on.
+    public Visibility EnableStateAwareFiltersVisibility =>
+        EnableStateAwareFilters ? Visibility.Visible : Visibility.Collapsed;
+
+    // Non-state-aware Match/Non-Match Action rows are visible while the switch is off
+    // (or the reader does not support state-aware at all).
+    public Visibility NonStateAwareFiltersVisibility =>
+        EnableStateAwareFilters ? Visibility.Collapsed : Visibility.Visible;
 
     [ObservableProperty]
     private string filter1Option = "Match";
@@ -152,10 +186,14 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private string useSpecifiedFrequencies = "Disabled";
 
     [ObservableProperty]
-    private string frequencyChannels = string.Empty;
+    private ObservableCollection<FrequencyChannelRow> frequencyChannelOptions = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FrequencyChannelsVisibility))]
     private bool isFrequencyChannelsEnabled;
+
+    public Visibility FrequencyChannelsVisibility =>
+        IsFrequencyChannelsEnabled ? Visibility.Visible : Visibility.Collapsed;
 
     [ObservableProperty]
     private bool lowDutyCycleEnabled;
@@ -505,8 +543,9 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             extensions[ImpinjInventoryReportOptions.ExtensionKey] = requested;
         }
 
-        // Search Mode is an inventory-command extension (ImpinjInventorySearchMode is allowed in
-        // C1G2InventoryCommand), so it travels with the inventory settings rather than reader config.
+        // Search Mode / Fixed Frequency / Low Duty Cycle are inventory-command extensions
+        // (allowedIn C1G2InventoryCommand per Impinjdef.xml), so they travel with the inventory
+        // settings rather than the reader configuration.
         ImpinjInventoryControlOptions existingControl =
             extensions.TryGetValue(ImpinjInventoryControlOptions.ExtensionKey, out object? controlValue) &&
             controlValue is ImpinjInventoryControlOptions controlOptions
@@ -515,6 +554,13 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         ImpinjInventoryControlOptions requestedControl = existingControl with
         {
             InventorySearchMode = ParseSearchMode(SearchMode),
+            FixedFrequency = BuildFixedFrequency(),
+            LowDutyCycle = LowDutyCycleEnabled
+                ? new ImpinjLowDutyCycleSettings(
+                    ImpinjLowDutyCycleMode.Enabled,
+                    ParseUShort(EmptyFieldTimeoutMs, nameof(EmptyFieldTimeoutMs)),
+                    ParseUShort(FieldPingIntervalMs, nameof(FieldPingIntervalMs)))
+                : null,
         };
         extensions[ImpinjInventoryControlOptions.ExtensionKey] = requestedControl;
 
@@ -532,13 +578,6 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         // SET_READER_CONFIG does not carry parameters some firmware rejects (M_UnsupportedParameter).
         ImpinjReaderConfiguration requested = new()
         {
-            FixedFrequency = BuildFixedFrequency(),
-            LowDutyCycle = LowDutyCycleEnabled
-                ? new ImpinjLowDutyCycleSettings(
-                    ImpinjLowDutyCycleMode.Enabled,
-                    ParseUShort(EmptyFieldTimeoutMs, nameof(EmptyFieldTimeoutMs)),
-                    ParseUShort(FieldPingIntervalMs, nameof(FieldPingIntervalMs)))
-                : null,
             GpiDebounce = HasGpiConfiguration()
                 ? GpiSettings
                     .Select(static row => new ImpinjGpiDebounceSetting((ushort)row.Port, ParseDebounceMs(row.DebounceMs)))
@@ -558,24 +597,27 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private ImpinjFixedFrequencySettings? BuildFixedFrequency() =>
         UseSpecifiedFrequencies.ToUpperInvariant() switch
         {
-            "CHANNEL LIST" => new ImpinjFixedFrequencySettings(
-                ImpinjFixedFrequencyMode.Channel_List,
-                ParseChannelList(FrequencyChannels)),
+            "CHANNEL LIST" => BuildChannelListFrequency(),
             "AUTO SELECT" => new ImpinjFixedFrequencySettings(ImpinjFixedFrequencyMode.Auto_Select, []),
             _ => null,
         };
 
-    private static IReadOnlyList<ushort> ParseChannelList(string value)
+    private ImpinjFixedFrequencySettings BuildChannelListFrequency()
     {
-        if (string.IsNullOrWhiteSpace(value))
+        ushort[] channels = FrequencyChannelOptions
+            .Where(row => row.IsSelected)
+            .Select(row => row.ChannelIndex)
+            .ToArray();
+
+        // Impinj requires 1-50 channels; an empty ChannelList fails with
+        // "//ImpinjFixedFrequencyList/ChannelList : invalid number of channels".
+        if (channels.Length == 0)
         {
-            return Array.Empty<ushort>();
+            throw new InvalidOperationException(
+                "Channel List 模式需要至少勾选 1 个频道（Impinj 要求 1-50 个频道）。");
         }
 
-        return value
-            .Split([',', ';', ' '], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Select(part => ParseUShort(part, "Channel"))
-            .ToArray();
+        return new ImpinjFixedFrequencySettings(ImpinjFixedFrequencyMode.Channel_List, channels);
     }
 
     private static ImpinjInventorySearchType? ParseSearchMode(string value) =>
@@ -594,21 +636,25 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private IReadOnlyList<InventorySelectFilter> BuildFiltersFromUi()
     {
         var filters = new List<InventorySelectFilter>(2);
-        AddFilter(filters, Filter1, Filter1BitLength, Filter1Offset, Filter1MemoryBank, Filter1Target, Filter1Action);
-        AddFilter(filters, Filter2, Filter2BitLength, Filter2Offset, Filter2MemoryBank, Filter2Target, Filter2Action);
+        AddFilter(filters, Filter1Enabled, Filter1, Filter1BitLength, Filter1Offset, Filter1MemoryBank, Filter1Target, Filter1Action, Filter1MatchAction, Filter1NonMatchAction, EnableStateAwareFilters);
+        AddFilter(filters, Filter2Enabled, Filter2, Filter2BitLength, Filter2Offset, Filter2MemoryBank, Filter2Target, Filter2Action, Filter2MatchAction, Filter2NonMatchAction, EnableStateAwareFilters);
         return filters;
     }
 
     private static void AddFilter(
         List<InventorySelectFilter> filters,
+        bool enabled,
         string value,
         string bitLength,
         string offset,
         string memoryBank,
         string target,
-        string action)
+        string action,
+        string matchAction,
+        string nonMatchAction,
+        bool enableStateAware)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (!enabled || string.IsNullOrWhiteSpace(value))
         {
             return;
         }
@@ -619,13 +665,13 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             BitPointer = ParseUShort(offset, "Filter offset"),
             Mask = HexCodec.ParseBytes(value),
             BitLength = ParseUShort(bitLength, "Filter bit length"),
-            MatchAction = InventorySelectAction.Select,
-            NonMatchAction = InventorySelectAction.Unselect,
+            MatchAction = ParseSelectAction(matchAction),
+            NonMatchAction = ParseSelectAction(nonMatchAction),
         };
 
         // State-aware filters are only valid on readers that advertise state-aware singulation support;
         // the compiler also requires StateAwareSingulation (set in BuildSettingsFromUi).
-        if (!target.Trim().Equals("Selected Flag", StringComparison.OrdinalIgnoreCase))
+        if (enableStateAware)
         {
             filter = filter with
             {
@@ -639,6 +685,20 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
         filters.Add(filter);
     }
+
+    private static InventorySelectAction ParseSelectAction(string value) => value.Trim() switch
+    {
+        "Do Nothing" => InventorySelectAction.DoNothing,
+        "Unselect" => InventorySelectAction.Unselect,
+        _ => InventorySelectAction.Select,
+    };
+
+    private static string FormatSelectAction(InventorySelectAction action) => action switch
+    {
+        InventorySelectAction.DoNothing => "Do Nothing",
+        InventorySelectAction.Unselect => "Unselect",
+        _ => "Select",
+    };
 
     private static InventoryFilterTarget ParseFilterTarget(string value) => value.Trim() switch
     {
@@ -820,6 +880,10 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         string preservedTxPower = PowerDbm;
         string preservedRxSensitivity = RxSensitivity;
         string preservedRfMode = RfMode;
+        HashSet<ushort> preservedChannels = FrequencyChannelOptions
+            .Where(row => row.IsSelected)
+            .Select(row => row.ChannelIndex)
+            .ToHashSet();
 
         txPowerIndexesByDisplay.Clear();
         txPowerDisplaysByIndex.Clear();
@@ -865,6 +929,32 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         }
 
         SupportsStateAwareFilters = capabilities.CanDoTagInventoryStateAwareSingulation;
+
+        // Frequency channel table comes from standard LLRP capabilities. Prefer the hop table
+        // (FrequencyInformation.HopTable); fall back to the fixed-frequency table (TxFrequencies),
+        // which some readers report instead. The channel number written to ImpinjFixedFrequencyList
+        // is the 1-based position within the chosen table.
+        FrequencyChannelOptions.Clear();
+        IReadOnlyList<uint> frequencies = capabilities.HopTables.FirstOrDefault()?.Frequencies
+            ?? capabilities.TxFrequencies;
+        if (frequencies.Count > 0)
+        {
+            for (int i = 0; i < frequencies.Count; i++)
+            {
+                FrequencyChannelOptions.Add(new FrequencyChannelRow((ushort)(i + 1), frequencies[i]));
+            }
+        }
+
+        // Restore the channel selections the user made before the rebuild (e.g. ApplySettingsAsync
+        // re-runs RefreshOptions right before building the settings, which would otherwise drop them).
+        foreach (FrequencyChannelRow row in FrequencyChannelOptions)
+        {
+            row.IsSelected = preservedChannels.Contains(row.ChannelIndex);
+        }
+
+        System.Diagnostics.Debug.WriteLine(
+            $"[DataSourceSettings] Frequency options: hopTables={capabilities.HopTables.Count}, " +
+            $"txFrequencies={capabilities.TxFrequencies.Count}, shown={FrequencyChannelOptions.Count}");
 
         // Restore selections that are still present in the (possibly rebuilt) option lists.
         if (txPowerIndexesByDisplay.ContainsKey(preservedTxPower))
@@ -1073,6 +1163,32 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         SearchMode = control?.InventorySearchMode is { } mode
             ? FormatSearchMode(mode)
             : "Reader Selected";
+
+        LowDutyCycleEnabled = control?.LowDutyCycle?.Mode == ImpinjLowDutyCycleMode.Enabled;
+        if (control?.LowDutyCycle is { } lowDutyCycle)
+        {
+            EmptyFieldTimeoutMs = lowDutyCycle.EmptyFieldTimeoutMilliseconds.ToString(CultureInfo.InvariantCulture);
+            FieldPingIntervalMs = lowDutyCycle.FieldPingIntervalMilliseconds.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (control?.FixedFrequency is { } fixedFrequency)
+        {
+            UseSpecifiedFrequencies = fixedFrequency.Mode switch
+            {
+                ImpinjFixedFrequencyMode.Channel_List => "Channel List",
+                ImpinjFixedFrequencyMode.Auto_Select => "Auto Select",
+                _ => "Disabled",
+            };
+
+            ApplyFrequencySelection(fixedFrequency.Mode == ImpinjFixedFrequencyMode.Channel_List
+                ? fixedFrequency.ChannelList
+                : null);
+        }
+        else
+        {
+            UseSpecifiedFrequencies = "Disabled";
+            ApplyFrequencySelection(null);
+        }
     }
 
     private void ApplySettingsToUi(ReaderSettings settings)
@@ -1088,7 +1204,12 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
     private void ApplyFiltersToUi(IReadOnlyList<InventorySelectFilter> filters)
     {
+        bool stateAware1 = filters.Count > 0 && filters[0].StateAwareAction is not null;
+        bool stateAware2 = filters.Count > 1 && filters[1].StateAwareAction is not null;
+        EnableStateAwareFilters = stateAware1 || stateAware2;
+
         Filter1 = filters.Count > 0 ? FormatFilterMask(filters[0]) : string.Empty;
+        Filter1Enabled = filters.Count > 0;
         Filter1BitLength = filters.Count > 0 ? filters[0].BitLength.ToString(CultureInfo.InvariantCulture) : "0";
         Filter1Offset = filters.Count > 0 ? filters[0].BitPointer.ToString(CultureInfo.InvariantCulture) : "32";
         Filter1MemoryBank = filters.Count > 0 ? FormatMemoryBank(filters[0].MemoryBank) : "EPC";
@@ -1098,8 +1219,11 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         Filter1Action = filters.Count > 0 && filters[0].StateAwareAction is { } action1b
             ? FormatFilterAction(action1b.Action)
             : "Assert A/Deassert B";
+        Filter1MatchAction = filters.Count > 0 ? FormatSelectAction(filters[0].MatchAction) : "Select";
+        Filter1NonMatchAction = filters.Count > 0 ? FormatSelectAction(filters[0].NonMatchAction) : "Unselect";
 
         Filter2 = filters.Count > 1 ? FormatFilterMask(filters[1]) : string.Empty;
+        Filter2Enabled = filters.Count > 1;
         Filter2BitLength = filters.Count > 1 ? filters[1].BitLength.ToString(CultureInfo.InvariantCulture) : "0";
         Filter2Offset = filters.Count > 1 ? filters[1].BitPointer.ToString(CultureInfo.InvariantCulture) : "32";
         Filter2MemoryBank = filters.Count > 1 ? FormatMemoryBank(filters[1].MemoryBank) : "EPC";
@@ -1109,6 +1233,8 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         Filter2Action = filters.Count > 1 && filters[1].StateAwareAction is { } action2b
             ? FormatFilterAction(action2b.Action)
             : "Assert A/Deassert B";
+        Filter2MatchAction = filters.Count > 1 ? FormatSelectAction(filters[1].MatchAction) : "Select";
+        Filter2NonMatchAction = filters.Count > 1 ? FormatSelectAction(filters[1].NonMatchAction) : "Unselect";
     }
 
     private static string FormatFilterMask(InventorySelectFilter filter) =>
@@ -1166,31 +1292,6 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             return;
         }
 
-        LowDutyCycleEnabled = configuration.LowDutyCycle?.Mode == ImpinjLowDutyCycleMode.Enabled;
-        if (configuration.LowDutyCycle is { } lowDutyCycle)
-        {
-            EmptyFieldTimeoutMs = lowDutyCycle.EmptyFieldTimeoutMilliseconds.ToString(CultureInfo.InvariantCulture);
-            FieldPingIntervalMs = lowDutyCycle.FieldPingIntervalMilliseconds.ToString(CultureInfo.InvariantCulture);
-        }
-
-        if (configuration.FixedFrequency is { } fixedFrequency)
-        {
-            UseSpecifiedFrequencies = fixedFrequency.Mode switch
-            {
-                ImpinjFixedFrequencyMode.Channel_List => "Channel List",
-                ImpinjFixedFrequencyMode.Auto_Select => "Auto Select",
-                _ => "Disabled",
-            };
-            FrequencyChannels = fixedFrequency.Mode == ImpinjFixedFrequencyMode.Channel_List
-                ? string.Join(", ", fixedFrequency.ChannelList)
-                : string.Empty;
-        }
-        else
-        {
-            UseSpecifiedFrequencies = "Disabled";
-            FrequencyChannels = string.Empty;
-        }
-
         foreach (ImpinjGpiDebounceSetting debounce in configuration.GpiDebounce)
         {
             GpiSettingsRow? row = GpiSettings.FirstOrDefault(candidate => candidate.Port == debounce.GpiPortNumber);
@@ -1211,6 +1312,14 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         ImpinjInventorySearchType.Dual_Target_with_BtoASelect => "Dual Target Select B to A",
         _ => "Reader Selected",
     };
+
+    private void ApplyFrequencySelection(IReadOnlyList<ushort>? channelList)
+    {
+        foreach (FrequencyChannelRow row in FrequencyChannelOptions)
+        {
+            row.IsSelected = channelList?.Contains(row.ChannelIndex) == true;
+        }
+    }
 
     partial void OnUseSpecifiedFrequenciesChanged(string value) => UpdateFrequencyChannelsEnabled();
 
@@ -1352,6 +1461,23 @@ public sealed partial class AntennaSettingsRow : ObservableObject
     }
 
     public string Name { get; }
+}
+
+public sealed partial class FrequencyChannelRow : ObservableObject
+{
+    public ushort ChannelIndex { get; }
+    public uint FrequencyKHz { get; }
+    public string FrequencyDisplay { get; }
+
+    [ObservableProperty]
+    private bool isSelected;
+
+    public FrequencyChannelRow(ushort channelIndex, uint frequencyKHz)
+    {
+        ChannelIndex = channelIndex;
+        FrequencyKHz = frequencyKHz;
+        FrequencyDisplay = (frequencyKHz / 1000.0).ToString("0.###", CultureInfo.InvariantCulture);
+    }
 }
 
 public sealed partial class GpiSettingsRow : ObservableObject

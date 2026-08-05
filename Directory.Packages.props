@@ -6,8 +6,8 @@
   <ItemGroup>
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="FontAwesome.Sharp" Version="6.6.0" />
-    <PackageVersion Include="LlrpSdk" Version="0.7.2" />
-    <PackageVersion Include="LlrpSdk.Extensions.Impinj" Version="0.7.2" />
+    <PackageVersion Include="LlrpSdk" Version="0.8.0" />
+    <PackageVersion Include="LlrpSdk.Extensions.Impinj" Version="0.8.0" />
     <PackageVersion Include="MahApps.Metro" Version="2.4.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />

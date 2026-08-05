@@ -310,40 +310,50 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Mode:" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding FilterMode}" IsEditable="True" Style="{StaticResource FieldControlStyle}">
-                                <ComboBoxItem Content="None" />
+                            <CheckBox Grid.Row="0" Grid.Column="1" IsChecked="{Binding Filter1Enabled}" Content="Filter 1" HorizontalAlignment="Center" Margin="0,0,0,6" />
+                            <CheckBox Grid.Row="0" Grid.Column="2" IsChecked="{Binding Filter2Enabled}" Content="Filter 2" HorizontalAlignment="Center" Margin="0,0,0,6" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Filter:" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Filter1}" Margin="0,0,6,6" />
+                            <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding Filter2}" Margin="6,0,0,6" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Bit Length:" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Filter1BitLength}" Margin="0,0,6,6" />
+                            <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding Filter2BitLength}" Margin="6,0,0,6" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Offset:" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Filter1Offset}" Margin="0,0,6,6" />
+                            <TextBox Grid.Row="3" Grid.Column="2" Text="{Binding Filter2Offset}" Margin="6,0,0,6" />
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Memory Bank:" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Grid.Row="4" Grid.Column="1" Text="{Binding Filter1MemoryBank}" IsEditable="True" Margin="0,0,6,6">
+                                <ComboBoxItem Content="EPC" />
+                                <ComboBoxItem Content="TID" />
+                                <ComboBoxItem Content="User" />
+                                <ComboBoxItem Content="Reserved" />
+                            </ComboBox>
+                            <ComboBox Grid.Row="4" Grid.Column="2" Text="{Binding Filter2MemoryBank}" IsEditable="True" Margin="6,0,0,6">
+                                <ComboBoxItem Content="EPC" />
+                                <ComboBoxItem Content="TID" />
+                                <ComboBoxItem Content="User" />
+                                <ComboBoxItem Content="Reserved" />
                             </ComboBox>
 
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Filter Verification:" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox Grid.Row="1" Grid.Column="1" Text="{Binding FilterVerification}" IsEditable="True" Style="{StaticResource FieldControlStyle}" />
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="State-Aware:" Style="{StaticResource FieldLabelStyle}" Visibility="{Binding SupportsStateAwareFiltersVisibility}" />
+                            <CheckBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" IsChecked="{Binding EnableStateAwareFilters}" VerticalAlignment="Center" Visibility="{Binding SupportsStateAwareFiltersVisibility}" />
 
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="Filter 1" HorizontalAlignment="Center" Margin="0,0,0,6" />
-                            <TextBlock Grid.Row="2" Grid.Column="2" Text="Filter 2" HorizontalAlignment="Center" Margin="0,0,0,6" />
-
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Filter:" Style="{StaticResource FieldLabelStyle}" />
-                            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Filter1}" Margin="0,0,6,6" />
-                            <TextBox Grid.Row="3" Grid.Column="2" Text="{Binding Filter2}" Margin="6,0,0,6" />
-
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Bit Length:" Style="{StaticResource FieldLabelStyle}" />
-                            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Filter1BitLength}" Margin="0,0,6,6" />
-                            <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding Filter2BitLength}" Margin="6,0,0,6" />
-
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Offset:" Style="{StaticResource FieldLabelStyle}" />
-                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Filter1Offset}" Margin="0,0,6,6" />
-                            <TextBox Grid.Row="5" Grid.Column="2" Text="{Binding Filter2Offset}" Margin="6,0,0,6" />
-
-                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Target:" Style="{StaticResource FieldLabelStyle}" Visibility="{Binding SupportsStateAwareFiltersVisibility}" />
-                            <ComboBox Grid.Row="7" Grid.Column="1" Text="{Binding Filter1Target}" IsEditable="True" Margin="0,0,6,6" Visibility="{Binding SupportsStateAwareFiltersVisibility}">
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Target:" Style="{StaticResource FieldLabelStyle}" Visibility="{Binding EnableStateAwareFiltersVisibility}" />
+                            <ComboBox Grid.Row="6" Grid.Column="1" Text="{Binding Filter1Target}" IsEditable="True" Margin="0,0,6,6" Visibility="{Binding EnableStateAwareFiltersVisibility}">
                                 <ComboBoxItem Content="Selected Flag" />
                                 <ComboBoxItem Content="Session0" />
                                 <ComboBoxItem Content="Session1" />
                                 <ComboBoxItem Content="Session2" />
                                 <ComboBoxItem Content="Session3" />
                             </ComboBox>
-                            <ComboBox Grid.Row="7" Grid.Column="2" Text="{Binding Filter2Target}" IsEditable="True" Margin="6,0,0,6" Visibility="{Binding SupportsStateAwareFiltersVisibility}">
+                            <ComboBox Grid.Row="6" Grid.Column="2" Text="{Binding Filter2Target}" IsEditable="True" Margin="6,0,0,6" Visibility="{Binding EnableStateAwareFiltersVisibility}">
                                 <ComboBoxItem Content="Selected Flag" />
                                 <ComboBoxItem Content="Session0" />
                                 <ComboBoxItem Content="Session1" />
@@ -351,8 +361,8 @@
                                 <ComboBoxItem Content="Session3" />
                             </ComboBox>
 
-                            <TextBlock Grid.Row="8" Grid.Column="0" Text="Action:" Style="{StaticResource FieldLabelStyle}" Visibility="{Binding SupportsStateAwareFiltersVisibility}" />
-                            <ComboBox Grid.Row="8" Grid.Column="1" Text="{Binding Filter1Action}" IsEditable="True" Margin="0,0,6,6" Visibility="{Binding SupportsStateAwareFiltersVisibility}">
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Action:" Style="{StaticResource FieldLabelStyle}" Visibility="{Binding EnableStateAwareFiltersVisibility}" />
+                            <ComboBox Grid.Row="7" Grid.Column="1" Text="{Binding Filter1Action}" IsEditable="True" Margin="0,0,6,6" Visibility="{Binding EnableStateAwareFiltersVisibility}">
                                 <ComboBoxItem Content="Assert A/Deassert B" />
                                 <ComboBoxItem Content="Assert A/No Op" />
                                 <ComboBoxItem Content="No Op/Deassert B" />
@@ -362,7 +372,7 @@
                                 <ComboBoxItem Content="No Op/Assert A" />
                                 <ComboBoxItem Content="No Op/Negate" />
                             </ComboBox>
-                            <ComboBox Grid.Row="8" Grid.Column="2" Text="{Binding Filter2Action}" IsEditable="True" Margin="6,0,0,6" Visibility="{Binding SupportsStateAwareFiltersVisibility}">
+                            <ComboBox Grid.Row="7" Grid.Column="2" Text="{Binding Filter2Action}" IsEditable="True" Margin="6,0,0,6" Visibility="{Binding EnableStateAwareFiltersVisibility}">
                                 <ComboBoxItem Content="Assert A/Deassert B" />
                                 <ComboBoxItem Content="Assert A/No Op" />
                                 <ComboBoxItem Content="No Op/Deassert B" />
@@ -372,17 +382,29 @@
                                 <ComboBoxItem Content="No Op/Assert A" />
                                 <ComboBoxItem Content="No Op/Negate" />
                             </ComboBox>
-                            <ComboBox Grid.Row="6" Grid.Column="1" Text="{Binding Filter1MemoryBank}" IsEditable="True" Margin="0,0,6,6">
-                                <ComboBoxItem Content="EPC" />
-                                <ComboBoxItem Content="TID" />
-                                <ComboBoxItem Content="User" />
-                                <ComboBoxItem Content="Reserved" />
+
+                            <TextBlock Grid.Row="8" Grid.Column="0" Text="Match Action:" Style="{StaticResource FieldLabelStyle}" Visibility="{Binding NonStateAwareFiltersVisibility}" />
+                            <ComboBox Grid.Row="8" Grid.Column="1" Text="{Binding Filter1MatchAction}" IsEditable="True" Margin="0,0,6,6" Visibility="{Binding NonStateAwareFiltersVisibility}">
+                                <ComboBoxItem Content="Select" />
+                                <ComboBoxItem Content="Unselect" />
+                                <ComboBoxItem Content="Do Nothing" />
                             </ComboBox>
-                            <ComboBox Grid.Row="6" Grid.Column="2" Text="{Binding Filter2MemoryBank}" IsEditable="True" Margin="6,0,0,6">
-                                <ComboBoxItem Content="EPC" />
-                                <ComboBoxItem Content="TID" />
-                                <ComboBoxItem Content="User" />
-                                <ComboBoxItem Content="Reserved" />
+                            <ComboBox Grid.Row="8" Grid.Column="2" Text="{Binding Filter2MatchAction}" IsEditable="True" Margin="6,0,0,6" Visibility="{Binding NonStateAwareFiltersVisibility}">
+                                <ComboBoxItem Content="Select" />
+                                <ComboBoxItem Content="Unselect" />
+                                <ComboBoxItem Content="Do Nothing" />
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="9" Grid.Column="0" Text="Non-Match Action:" Style="{StaticResource FieldLabelStyle}" Visibility="{Binding NonStateAwareFiltersVisibility}" />
+                            <ComboBox Grid.Row="9" Grid.Column="1" Text="{Binding Filter1NonMatchAction}" IsEditable="True" Margin="0,0,6,6" Visibility="{Binding NonStateAwareFiltersVisibility}">
+                                <ComboBoxItem Content="Select" />
+                                <ComboBoxItem Content="Unselect" />
+                                <ComboBoxItem Content="Do Nothing" />
+                            </ComboBox>
+                            <ComboBox Grid.Row="9" Grid.Column="2" Text="{Binding Filter2NonMatchAction}" IsEditable="True" Margin="6,0,0,6" Visibility="{Binding NonStateAwareFiltersVisibility}">
+                                <ComboBoxItem Content="Select" />
+                                <ComboBoxItem Content="Unselect" />
+                                <ComboBoxItem Content="Do Nothing" />
                             </ComboBox>
                             </Grid>
                         </DockPanel>
@@ -409,8 +431,28 @@
                                 <ComboBoxItem Content="Auto Select" />
                                 <ComboBoxItem Content="Channel List" />
                             </ComboBox>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Channels:" Style="{StaticResource FieldLabelStyle}" />
-                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding FrequencyChannels}" IsEnabled="{Binding IsFrequencyChannelsEnabled}" Style="{StaticResource FieldControlStyle}" ToolTip="Comma-separated channel numbers, e.g. 1, 2, 3" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Channels:" Style="{StaticResource FieldLabelStyle}" Visibility="{Binding FrequencyChannelsVisibility}" />
+                            <ScrollViewer Grid.Row="1" Grid.Column="1"
+                                          MaxHeight="150"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Margin="0,0,0,6"
+                                          Visibility="{Binding FrequencyChannelsVisibility}">
+                                <ItemsControl ItemsSource="{Binding FrequencyChannelOptions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsSelected}" Margin="0,2">
+                                                <TextBlock>
+                                                    <Run Text="{Binding ChannelIndex, Mode=OneWay}" />
+                                                    <Run Text=" - " />
+                                                    <Run Text="{Binding FrequencyDisplay, Mode=OneWay}" />
+                                                    <Run Text=" MHz" Foreground="Gray" />
+                                                </TextBlock>
+                                            </CheckBox>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
                             </Grid>
                         </DockPanel>
                     </Border>
