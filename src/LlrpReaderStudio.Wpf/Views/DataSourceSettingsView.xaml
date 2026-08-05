@@ -231,27 +231,34 @@
                                       CanUserAddRows="False"
                                       IsReadOnly="False"
                                       HeadersVisibility="Column"
-                                      Height="132"
+                                      Height="160"
                                       Margin="8"
+                                      BorderThickness="1"
+                                      BorderBrush="{DynamicResource MahApps.Brushes.Gray7}"
+                                      RowHeight="32"
+                                      GridLinesVisibility="Horizontal"
+                                      HorizontalGridLinesBrush="{DynamicResource MahApps.Brushes.Gray8}"
+                                      AlternatingRowBackground="{DynamicResource MahApps.Brushes.Gray10}"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="GPI PORT" Binding="{Binding Port}" Width="75" IsReadOnly="True">
+                                    <DataGridTextColumn Header="PORT" Binding="{Binding Port}" Width="60" IsReadOnly="True">
                                         <DataGridTextColumn.ElementStyle>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="TextAlignment" Value="Center" />
                                                 <Setter Property="VerticalAlignment" Value="Center" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
                                             </Style>
                                         </DataGridTextColumn.ElementStyle>
                                     </DataGridTextColumn>
-                                    <DataGridCheckBoxColumn Header="START" Binding="{Binding StartEnabled}" Width="70">
+                                    <DataGridCheckBoxColumn Header="START" Binding="{Binding StartEnabled}" Width="65">
                                         <DataGridCheckBoxColumn.ElementStyle>
-                                            <Style TargetType="CheckBox">
+                                            <Style TargetType="CheckBox" BasedOn="{StaticResource MahApps.Styles.CheckBox.DataGrid}">
                                                 <Setter Property="HorizontalAlignment" Value="Center" />
                                                 <Setter Property="VerticalAlignment" Value="Center" />
                                             </Style>
                                         </DataGridCheckBoxColumn.ElementStyle>
                                     </DataGridCheckBoxColumn>
-                                    <DataGridTextColumn Header="LEVEL" Binding="{Binding StartLevel}" Width="80">
+                                    <DataGridTextColumn Header="LEVEL" Binding="{Binding StartLevel}" Width="65">
                                         <DataGridTextColumn.ElementStyle>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="TextAlignment" Value="Center" />
@@ -259,15 +266,15 @@
                                             </Style>
                                         </DataGridTextColumn.ElementStyle>
                                     </DataGridTextColumn>
-                                    <DataGridCheckBoxColumn Header="STOP" Binding="{Binding StopEnabled}" Width="70">
+                                    <DataGridCheckBoxColumn Header="STOP" Binding="{Binding StopEnabled}" Width="65">
                                         <DataGridCheckBoxColumn.ElementStyle>
-                                            <Style TargetType="CheckBox">
+                                            <Style TargetType="CheckBox" BasedOn="{StaticResource MahApps.Styles.CheckBox.DataGrid}">
                                                 <Setter Property="HorizontalAlignment" Value="Center" />
                                                 <Setter Property="VerticalAlignment" Value="Center" />
                                             </Style>
                                         </DataGridCheckBoxColumn.ElementStyle>
                                     </DataGridCheckBoxColumn>
-                                    <DataGridTextColumn Header="LEVEL" Binding="{Binding StopLevel}" Width="80">
+                                    <DataGridTextColumn Header="LEVEL" Binding="{Binding StopLevel}" Width="65">
                                         <DataGridTextColumn.ElementStyle>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="TextAlignment" Value="Center" />
@@ -275,10 +282,14 @@
                                             </Style>
                                         </DataGridTextColumn.ElementStyle>
                                     </DataGridTextColumn>
-                                    <DataGridTemplateColumn Header="DEBOUNCE (MS)" Width="105">
+                                    <DataGridTemplateColumn Header="DEBOUNCE (ms)" Width="*">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <TextBox Text="{Binding DebounceMs}" IsEnabled="{Binding IsDebounceEnabled}" VerticalAlignment="Center" />
+                                                <TextBox Text="{Binding DebounceMs}" 
+                                                         IsEnabled="{Binding IsDebounceEnabled}" 
+                                                         VerticalAlignment="Center" 
+                                                         Margin="2"
+                                                         HorizontalContentAlignment="Center"/>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
