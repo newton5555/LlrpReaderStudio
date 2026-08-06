@@ -1,5 +1,9 @@
 # LlrpReaderStudio
 
+> **Scope**: This application targets **Impinj RFID readers only** (Impinj LLRP extensions enabled by
+> default; standard LLRP devices without Impinj support are out of scope). The project is archived
+> after the current adjustments — no further feature work is planned.
+
 Standalone WPF application for operating LLRP RFID readers, built on the
 [`LlrpSdk`](https://www.nuget.org/packages/LlrpSdk) / 
 [`LlrpSdk.Extensions.Impinj`](https://www.nuget.org/packages/LlrpSdk.Extensions.Impinj)

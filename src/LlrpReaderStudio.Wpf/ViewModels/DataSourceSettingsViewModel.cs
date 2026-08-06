@@ -258,6 +258,36 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         SelectedReaderRegion = "Reader default";
     }
 
+    /// <summary>
+    /// Shows the last saved settings for the reader without connecting. Live data requires an
+    /// explicit REFRESH SETTINGS (QuerySettingsAsync).
+    /// </summary>
+    public async Task LoadCachedSettingsAsync(ReaderItemViewModel reader, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        SetSelectedReader(reader);
+
+        try
+        {
+            ReaderSettings? saved = await inventoryPresets.LoadDefaultAsync(reader.Id, cancellationToken);
+            if (saved is not null)
+            {
+                settingsDraft = saved;
+                ApplySettingsToUi(settingsDraft);
+                SettingsOrigin = $"Cached preset ({DateTime.Now:HH:mm:ss})";
+                StatusMessage = $"{reader.Name}: Showing last saved settings; REFRESH SETTINGS for live data.";
+            }
+            else
+            {
+                StatusMessage = $"{reader.Name}: No cached settings yet; use REFRESH SETTINGS to query the reader.";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Could not load cached settings: {ex.Message}";
+        }
+    }
+
     public async Task InitializeForReaderAsync(ReaderItemViewModel reader, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reader);

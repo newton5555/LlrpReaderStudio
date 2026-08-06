@@ -286,3 +286,15 @@ R700 与兼容 M700 标签显示 Protected Mode 操作。必须启用 FastID、�
 - **SDK 日志区分多 Reader**：当前输出模板含 `{SourceContext}`（如 `LlrpSdk.Reader.LlrpReader`），但 SDK 内部 logger 不带 endpoint/ReaderId，多设备同时操作时无法从 sdk-*.log 直接区分。需要在 SDK 侧（LlrpReader 的 logger 上下文）或 ReaderSession 层附加 reader 信息，依赖 SDK 版本迭代，暂不实施。
 - **SDK `RxSensitivityEntry` 偏移模型改造**：SDK 的 `ReceiveSensitivityDbm = value/100` 是偏移量而非绝对 dBm；UI 已对齐为显示 SDK 原始 `ReceiveSensitivityValue`（0/10/11…50）。SDK 侧模型修正待 SDK 迭代时一并处理。
 - **WPF 侧设置转换逻辑抽到 Core 层加单测**：`DataSourceSettingsViewModel` 中的 UI↔settings 转换（天线配置、GPI、Filter、SearchMode 等）目前无单测，逻辑稳定后抽取到 Core 层补覆盖。
+
+## 10. 设备范围与后续（P2/P3）
+
+- **设备范围**：当前软件仅支持 Impinj 设备。`ReaderProfile.EnableImpinjExtensions` 默认 true，不做按厂商 ID 的自动判定（P3 不做）；mDNS 只扫描 `_llrp._tcp.local.`（Impinj 设备均广播），非广播设备通过手动 IP 添加。
+- **P1 已实施**：添加数据源先临时探测（`ReaderFleetService.ProbeAsync`，成功后才保存 + 注册 + 建 UI，失败完全回滚）；启动对 Enable=true 设备检查一次、失败自动禁用并保存；Enable 开关空闲时开→验证（防重入、失败回滚）、关→断开；选择设备不隐式连接（设置页显式 REFRESH SETTINGS 才查询）。
+- **P2 待做**：Availability 状态机（Unknown/Checking/Reachable/Unreachable/Inventorying）、UI 显示最后检查时间/错误/型号固件、设置页显示最近一次缓存配置、停止寻卡时断开连接。
+
+## 11. 归档说明
+
+- 项目定位为 **Impinj-only** 工具：`ReaderProfile.EnableImpinjExtensions` 默认 true、不做厂商判定、mDNS 仅扫 `_llrp._tcp.local.`。标准 LLRP 设备支持不在范围内。
+- 当前调整完成后项目**归档**：不再规划新功能（P2 剩余项按需处理，P3 明确不做）。
+- 侧边导航栏：StatusMessage / Software Settings / About 固定在侧边栏底部。

@@ -109,6 +109,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
                 ReaderStatus status = fleet.Add(profile);
                 var item = new ReaderItemViewModel(status, saved.IsEnabled, onDeleteRequested: item => _ = RemoveSpecificReaderAsync(item));
+                item.SetLastKnownState(saved.LastCheckedAtUtc, saved.Model, saved.Firmware, saved.LastError);
                 readerIndex[profile.Id] = item;
                 item.PropertyChanged += OnReaderItemPropertyChanged;
                 Readers.Add(item);
@@ -133,18 +134,18 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             try
             {
-                if (SelectedReader == reader)
-                {
-                    await DataSourceSettingsVM.InitializeForReaderAsync(reader, CancellationToken.None);
-                }
-                else
-                {
-                    await fleet.ConnectAsync(reader.Id, CancellationToken.None);
-                }
+                await fleet.ConnectAsync(reader.Id, CancellationToken.None);
+                ReaderStatus status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
+                await readerProfiles.UpdateStatusAsync(reader.Id, DateTime.UtcNow, status.Model, status.Firmware, null, CancellationToken.None);
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Could not initialize '{reader.Name}': {ex.Message}";
+                // A reader that cannot be reached at startup is disabled automatically so it does
+                // not keep being selected for operations; the user can re-enable and re-verify later.
+                reader.IsEnabled = false;
+                await readerProfiles.SetEnabledAsync(reader.Id, false, CancellationToken.None);
+                await readerProfiles.UpdateStatusAsync(reader.Id, DateTime.UtcNow, null, null, ex.Message, CancellationToken.None);
+                StatusMessage = $"Could not initialize '{reader.Name}': {ex.Message} (disabled).";
             }
         }
     }
@@ -174,11 +175,12 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     partial void OnSelectedReaderChanged(ReaderItemViewModel? value)
     {
+        // Selecting a reader never implicitly connects; the settings page shows the cached/last
+        // known values and the user refreshes explicitly when a live query is needed.
         DataSourceSettingsVM.SetSelectedReader(value);
 
         if (value is not null)
         {
-            _ = DataSourceSettingsVM.InitializeForReaderAsync(value, CancellationToken.None);
             CurrentPage = DataSourceSettingsVM;
         }
     }
@@ -212,7 +214,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
-        await DataSourceSettingsVM.InitializeForReaderAsync(reader, CancellationToken.None);
+        // Opening the settings page for an already-selected reader shows the cached settings;
+        // live queries are explicit (REFRESH SETTINGS).
+        await DataSourceSettingsVM.LoadCachedSettingsAsync(reader, CancellationToken.None);
         CurrentPage = DataSourceSettingsVM;
     }
 
@@ -254,26 +258,28 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
                 Port = port
             };
 
+            // Probe first: nothing is registered or persisted until connectivity is verified.
+            StatusMessage = $"Probing '{profile.Name}' ({profile.Host}:{profile.Port})...";
+            ReaderProbeResult probe = await fleet.ProbeAsync(profile, CancellationToken.None);
+
+            await readerProfiles.SaveAsync(profile, isEnabled: true, CancellationToken.None);
             ReaderStatus status = fleet.Add(profile);
             var item = new ReaderItemViewModel(status, isEnabled: true, onDeleteRequested: item => _ = RemoveSpecificReaderAsync(item));
             readerIndex[profile.Id] = item;
             item.PropertyChanged += OnReaderItemPropertyChanged;
             Readers.Add(item);
             SyncOperationReaders();
-            SelectedReader = item;
 
-            StatusMessage = $"Checking TCP connectivity for '{profile.Name}'...";
-            await fleet.ValidateConnectionAsync(profile.Id, CancellationToken.None);
-
-            await readerProfiles.SaveAsync(profile, item.IsEnabled, CancellationToken.None);
-            await DataSourceSettingsVM.InitializeForReaderAsync(item, CancellationToken.None);
+            // Selecting the reader updates the settings page from the probe result; it does not
+            // connect again (selecting never implicitly connects).
             DataSourceSettingsVM.SetSelectedReader(item);
             CurrentPage = DataSourceSettingsVM;
-            StatusMessage = $"Added data source '{profile.Name}' ({profile.Host}); TCP connection verified.";
+            StatusMessage = $"Added data source '{profile.Name}' ({profile.Host}); connection verified"
+                + (probe.Model is null ? "." : $" ({probe.Model}).");
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Data source was added, but TCP validation failed: {ex.Message}";
+            StatusMessage = $"Could not add data source '{name}': {ex.Message}";
         }
     }
 
@@ -437,6 +443,45 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         if (!InventoryVM.IsInventoryRunning)
         {
+            // Idle toggle: re-enabling verifies connectivity (guarded against re-entrancy from the
+            // automatic rollback); disabling drops an established connection.
+            if (reader.IsEnabled)
+            {
+                if (!readerToggleOperations.Add(reader.Id))
+                {
+                    return;
+                }
+
+                try
+                {
+                    await fleet.ConnectAsync(reader.Id, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    reader.IsEnabled = false;
+                    StatusMessage = $"Could not enable '{reader.Name}': {ex.Message} (reverted).";
+                }
+                finally
+                {
+                    readerToggleOperations.Remove(reader.Id);
+                }
+            }
+            else
+            {
+                try
+                {
+                    ReaderStatus status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
+                    if (status.State is StudioReaderState.Connected or StudioReaderState.Connecting or StudioReaderState.Inventorying)
+                    {
+                        await fleet.DisconnectAsync(reader.Id, CancellationToken.None);
+                    }
+                }
+                catch
+                {
+                    // Best effort; the reader stays disabled regardless.
+                }
+            }
+
             return;
         }
 

@@ -24,6 +24,14 @@ public sealed class ReaderProfileEntity
     public bool AutoReconnect { get; set; } = false;
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public DateTime? LastCheckedAtUtc { get; set; }
+
+    public string? LastError { get; set; }
+
+    public string? Model { get; set; }
+
+    public string? Firmware { get; set; }
 }
 
 public sealed class ReaderPresetEntity

@@ -5,7 +5,13 @@ using Microsoft.Data.Sqlite;
 
 namespace LlrpReaderStudio.Infrastructure.Data;
 
-public sealed record SavedReaderProfile(ReaderProfile Profile, bool IsEnabled);
+public sealed record SavedReaderProfile(
+    ReaderProfile Profile,
+    bool IsEnabled,
+    DateTime? LastCheckedAtUtc = null,
+    string? LastError = null,
+    string? Model = null,
+    string? Firmware = null);
 
 public sealed class ReaderProfileRepository
 {
@@ -32,7 +38,7 @@ public sealed class ReaderProfileRepository
                 Host = reader.Host,
                 Port = reader.Port,
                 EnableImpinjExtensions = reader.EnableImpinjExtensions,
-            }, reader.IsEnabled))
+            }, reader.IsEnabled, reader.LastCheckedAtUtc, reader.LastError, reader.Model, reader.Firmware))
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -84,6 +90,37 @@ public sealed class ReaderProfileRepository
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Persists the latest connectivity check outcome (timestamp, identity and error) so the
+    /// device list can show the last known state without connecting.
+    /// </summary>
+    public async Task UpdateStatusAsync(
+        Guid id,
+        DateTime? lastCheckedAtUtc,
+        string? model,
+        string? firmware,
+        string? error,
+        CancellationToken cancellationToken = default)
+    {
+        await using StudioDbContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        await EnsureStorageAsync(dbContext, cancellationToken).ConfigureAwait(false);
+
+        ReaderProfileEntity? entity = await dbContext.ReaderProfiles
+            .FirstOrDefaultAsync(reader => reader.Id == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (entity is null)
+        {
+            return;
+        }
+
+        entity.LastCheckedAtUtc = lastCheckedAtUtc;
+        entity.Model = model;
+        entity.Firmware = firmware;
+        entity.LastError = error;
+        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         await using StudioDbContext dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
@@ -104,26 +141,42 @@ public sealed class ReaderProfileRepository
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        await using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = "PRAGMA table_info(ReaderProfiles);";
-        bool hasIsEnabled = false;
-        await using (SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (SqliteCommand command = connection.CreateCommand())
         {
-            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            command.CommandText = "PRAGMA table_info(ReaderProfiles);";
+            await using (SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
             {
-                if (string.Equals(reader.GetString(1), "IsEnabled", StringComparison.OrdinalIgnoreCase))
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    hasIsEnabled = true;
-                    break;
+                    columns.Add(reader.GetString(1));
                 }
             }
         }
 
-        if (!hasIsEnabled)
+        // Idempotent column migrations for the device list state (last check outcome / identity).
+        await AddColumnIfMissingAsync(connection, columns, "IsEnabled", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+        await AddColumnIfMissingAsync(connection, columns, "LastCheckedAtUtc", "TEXT NULL", cancellationToken);
+        await AddColumnIfMissingAsync(connection, columns, "LastError", "TEXT NULL", cancellationToken);
+        await AddColumnIfMissingAsync(connection, columns, "Model", "TEXT NULL", cancellationToken);
+        await AddColumnIfMissingAsync(connection, columns, "Firmware", "TEXT NULL", cancellationToken);
+    }
+
+    private static async Task AddColumnIfMissingAsync(
+        SqliteConnection connection,
+        HashSet<string> columns,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        if (columns.Contains(columnName))
         {
-            await using SqliteCommand alterCommand = connection.CreateCommand();
-            alterCommand.CommandText = "ALTER TABLE ReaderProfiles ADD COLUMN IsEnabled INTEGER NOT NULL DEFAULT 1;";
-            await alterCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            return;
         }
+
+        await using SqliteCommand alterCommand = connection.CreateCommand();
+        alterCommand.CommandText = $"ALTER TABLE ReaderProfiles ADD COLUMN {columnName} {columnDefinition};";
+        await alterCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        columns.Add(columnName);
     }
 }

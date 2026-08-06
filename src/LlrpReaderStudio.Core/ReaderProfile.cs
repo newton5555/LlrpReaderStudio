@@ -35,3 +35,6 @@ public sealed record ReaderStatus(
     string? Model,
     string? Firmware,
     string? Error);
+
+/// <summary>Result of a temporary connectivity probe for a not-yet-registered data source.</summary>
+public sealed record ReaderProbeResult(string? Model, string? Firmware);

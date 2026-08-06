@@ -107,41 +107,37 @@ public sealed class ReaderFleetService : IAsyncDisposable
         }, cancellationToken);
 
     /// <summary>
-    /// Performs the data-source connectivity check without leaving a live reader
-    /// connection behind. Inventory owns the long-lived connection lifecycle.
+    /// Probes a not-yet-registered data source: creates a temporary session, connects, reads the
+    /// reader identity, then disconnects and disposes. Nothing is registered or persisted; callers
+    /// decide whether to save and add the profile based on the result.
     /// </summary>
-    public Task ValidateConnectionAsync(Guid profileId, CancellationToken cancellationToken = default) =>
-        RunAsync(profileId, StudioReaderState.Connecting, async managed =>
+    public async Task<ReaderProbeResult> ProbeAsync(ReaderProfile profile, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        profile.Validate();
+        IReaderSession session = sessionFactory.Create(profile);
+        try
         {
-            bool connected = false;
+            await session.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            ReaderIdentity? identity = session.Identity;
+            return new ReaderProbeResult(
+                identity is null ? null : $"{identity.ManufacturerId}:{identity.ModelId}",
+                identity?.FirmwareVersion);
+        }
+        finally
+        {
             try
             {
-                await managed.Session.ConnectAsync(cancellationToken).ConfigureAwait(false);
-                connected = true;
-                managed.Status = managed.Status with
-                {
-                    State = StudioReaderState.Connected,
-                    Model = managed.Session.Identity is null
-                        ? null
-                        : $"{managed.Session.Identity.ManufacturerId}:{managed.Session.Identity.ModelId}",
-                    Firmware = managed.Session.Identity?.FirmwareVersion,
-                    Error = null,
-                };
-                Publish(managed);
+                await session.DisconnectAsync(CancellationToken.None).ConfigureAwait(false);
             }
-            finally
+            catch
             {
-                if (connected || managed.Session.IsConnected)
-                {
-                    await managed.Session.DisconnectAsync(cancellationToken).ConfigureAwait(false);
-                    managed.Status = managed.Status with
-                    {
-                        State = StudioReaderState.Disconnected,
-                        Error = null,
-                    };
-                }
+                // Disposal below remains authoritative.
             }
-        }, cancellationToken);
+
+            await session.DisposeAsync().ConfigureAwait(false);
+        }
+    }
 
     public Task DisconnectAsync(Guid profileId, CancellationToken cancellationToken = default) =>
         RunAsync(profileId, StudioReaderState.Disconnecting, async managed =>

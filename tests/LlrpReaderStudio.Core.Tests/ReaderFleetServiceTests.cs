@@ -22,19 +22,18 @@ public sealed class ReaderFleetServiceTests
     }
 
     [Fact]
-    public async Task ValidateConnection_ConnectsAndClosesWithoutInventory()
+    public async Task ProbeAsync_ConnectsAndDisposesWithoutRegistration()
     {
         var session = new FakeSession();
         await using var fleet = new ReaderFleetService(new FakeFactory(session));
         var profile = new ReaderProfile { Name = "Reader 1", Host = "192.0.2.10" };
-        fleet.Add(profile);
 
-        await fleet.ValidateConnectionAsync(profile.Id);
+        ReaderProbeResult result = await fleet.ProbeAsync(profile);
 
         Assert.True(session.ConnectCalled);
         Assert.True(session.DisconnectCalled);
         Assert.False(session.IsConnected);
-        Assert.Equal(StudioReaderState.Disconnected, Assert.Single(fleet.Readers).State);
+        Assert.Empty(fleet.Readers);
         Assert.Null(session.StartedInventory);
     }
 
