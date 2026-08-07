@@ -7,7 +7,7 @@
 Standalone WPF application for operating LLRP RFID readers, built on the
 [`LlrpSdk`](https://www.nuget.org/packages/LlrpSdk) / 
 [`LlrpSdk.Extensions.Impinj`](https://www.nuget.org/packages/LlrpSdk.Extensions.Impinj)
-NuGet packages (**0.8.0**, no SDK source reference).
+NuGet packages (**1.2.0**, no SDK source reference).
 
 ## Features
 
@@ -57,11 +57,24 @@ dotnet test  LlrpReaderStudio.slnx --no-build
 
 ## Packages
 
-- `LlrpSdk` / `LlrpSdk.Extensions.Impinj` (**0.8.0**, NuGet)
+- `LlrpSdk` / `LlrpSdk.Extensions.Impinj` (**1.2.0**, NuGet)
 - CommunityToolkit.Mvvm, MahApps.Metro, FontAwesome.Sharp
 - Microsoft.EntityFrameworkCore.Sqlite, Zeroconf
 - Serilog (+ Serilog.Sinks.Async / Serilog.Sinks.File), Serilog.Extensions.Logging,
   Microsoft.Extensions.Logging.Debug
+
+## SDK 1.2.0 adaptation
+
+- **Reader exceptions**: `ReaderExceptionOccurred` is surfaced from the SDK up
+  through the fleet service and shown in the app status bar / log.
+- **Device-initiated close**: a `Faulted` state now distinguishes a reader that
+  closed the connection itself (device restart / management action) from a
+  network failure.
+- **PC bits**: the inventory can request `IncludePcBits`; aggregated tags now
+  show a `PC Bits` column (toggleable in the grid column menu).
+- **Breakin (0.8.x -> 1.2.0)**: `ReaderSettingsSnapshot.Inventory` was removed;
+  readers read the active inventory from `snapshot.ManagedRoSpec?.Inventory`
+  falling back to `snapshot.Settings.Inventory`.
 
 ## Planning
 

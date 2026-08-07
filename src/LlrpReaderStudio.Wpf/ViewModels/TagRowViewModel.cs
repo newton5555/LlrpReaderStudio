@@ -24,6 +24,9 @@ public partial class TagRowViewModel : ObservableObject
     private string tid = "--";
 
     [ObservableProperty]
+    private string pcBits = "--";
+
+    [ObservableProperty]
     private string readers = string.Empty;
 
     [ObservableProperty]
@@ -51,6 +54,7 @@ public partial class TagRowViewModel : ObservableObject
     public string LastSeenTimeText => LastSeen.ToLocalTime().ToString("HH:mm:ss.fff");
     public string PeakRssiText => LastRssi is null ? "--" : LastRssi.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
     public string ChannelIndexText => LastChannelIndex is null ? "--" : LastChannelIndex.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    public string PcBitsText => PcBits;
 
     public void Update(TagObservation observation)
     {
@@ -59,6 +63,10 @@ public partial class TagRowViewModel : ObservableObject
         LastRssi = observation.LastRssi;
         LastChannelIndex = observation.LastChannelIndex;
         Tid = string.IsNullOrWhiteSpace(observation.Tid) ? Tid : observation.Tid;
+        if (!string.IsNullOrWhiteSpace(observation.PcBitsHex))
+        {
+            PcBits = observation.PcBitsHex;
+        }
         Readers = string.Join(", ", observation.Readers);
         Antennas = string.Join(", ", observation.Antennas);
         OnPropertyChanged(nameof(SeenCount));
@@ -67,6 +75,7 @@ public partial class TagRowViewModel : ObservableObject
         OnPropertyChanged(nameof(LastSeenTimeText));
         OnPropertyChanged(nameof(PeakRssiText));
         OnPropertyChanged(nameof(ChannelIndexText));
+        OnPropertyChanged(nameof(PcBitsText));
         RefreshTimeSinceLastSeen();
     }
 

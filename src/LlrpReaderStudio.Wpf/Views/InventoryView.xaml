@@ -82,6 +82,7 @@
                                 <CheckBox Content="Antenna" IsChecked="{Binding Data.ShowAntennaColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
                                 <CheckBox Content="Peak RSSI" IsChecked="{Binding Data.ShowPeakRssiColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
                                 <CheckBox Content="Channel" IsChecked="{Binding Data.ShowChannelColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
+                                <CheckBox Content="PC Bits" IsChecked="{Binding Data.ShowPcBitsColumn, Source={StaticResource InventoryVmProxy}, Mode=TwoWay}" Margin="8,4" />
                             </ContextMenu>
                         </Setter.Value>
                     </Setter>
@@ -128,6 +129,9 @@
                 <DataGridTextColumn Header="Channel" Binding="{Binding ChannelIndexText}" Width="80"
                                     ElementStyle="{StaticResource CenteredCellTextStyle}"
                                     Visibility="{Binding Data.ShowChannelColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <DataGridTextColumn Header="PC Bits" Binding="{Binding PcBitsText}" Width="80"
+                                    ElementStyle="{StaticResource CenteredMonoCellTextStyle}"
+                                    Visibility="{Binding Data.ShowPcBitsColumn, Source={StaticResource InventoryVmProxy}, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </DataGrid.Columns>
         </DataGrid>
     </Grid>

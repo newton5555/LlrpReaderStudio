@@ -65,6 +65,42 @@ public sealed class ReaderFleetServiceTests
         Assert.Equal(4, observed.Aggregate.ReadCount);
     }
 
+    [Fact]
+    public async Task DeviceInitiatedClose_MarksReaderFaulted()
+    {
+        var session = new FakeSession();
+        await using var fleet = new ReaderFleetService(new FakeFactory(session));
+        var profile = new ReaderProfile { Name = "Reader 1", Host = "192.0.2.10" };
+        fleet.Add(profile);
+        ReaderStatus? published = null;
+        fleet.ReaderStatusChanged += (_, args) => published = args.Status;
+
+        session.EmitDeviceInitiatedClosed();
+
+        Assert.Equal(StudioReaderState.Faulted, Assert.Single(fleet.Readers).State);
+        Assert.NotNull(published);
+        Assert.Equal(StudioReaderState.Faulted, published.State);
+        Assert.Contains("device-initiated", published.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReaderException_IsForwarded()
+    {
+        var session = new FakeSession();
+        await using var fleet = new ReaderFleetService(new FakeFactory(session));
+        var profile = new ReaderProfile { Name = "Reader 1", Host = "192.0.2.10" };
+        fleet.Add(profile);
+        ReaderDeviceExceptionEventArgs? observed = null;
+        fleet.ReaderDeviceExceptionOccurred += (_, args) => observed = args;
+
+        session.EmitReaderException(new ReaderDeviceExceptionEventArgs("op failed", 5, 1, DateTimeOffset.UtcNow));
+
+        Assert.NotNull(observed);
+        Assert.Equal("op failed", observed.Message);
+        Assert.Equal((uint)5, observed.ROSpecId);
+        Assert.Equal((ushort)1, observed.AntennaId);
+    }
+
     private sealed class FakeFactory(FakeSession session) : IReaderSessionFactory
     {
         public IReaderSession Create(ReaderProfile profile) => session;
@@ -79,6 +115,8 @@ public sealed class ReaderFleetServiceTests
         public ReaderIdentity? Identity => null;
         public ReaderCapabilities? Capabilities => null;
         public event EventHandler<StudioTagReportEventArgs>? TagReported;
+        public event EventHandler<ReaderDeviceExceptionEventArgs>? ReaderExceptionOccurred;
+        public event EventHandler<EventArgs>? DeviceInitiatedClosed;
 
         public Task ConnectAsync(CancellationToken cancellationToken)
         {
@@ -117,5 +155,11 @@ public sealed class ReaderFleetServiceTests
 
         public void Emit(TagReport report) =>
             TagReported?.Invoke(this, new StudioTagReportEventArgs(report));
+
+        public void EmitReaderException(ReaderDeviceExceptionEventArgs args) =>
+            ReaderExceptionOccurred?.Invoke(this, args);
+
+        public void EmitDeviceInitiatedClosed() =>
+            DeviceInitiatedClosed?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -57,6 +57,9 @@ public partial class InventoryViewModel : PageViewModelBase
     [ObservableProperty]
     private bool showChannelColumn = true;
 
+    [ObservableProperty]
+    private bool showPcBitsColumn;
+
     public InventoryViewModel()
     {
         PageTitle = "寻卡 / Inventory";
@@ -85,6 +88,7 @@ public partial class InventoryViewModel : PageViewModelBase
                 IncludeFirstSeenTimestamp = ShowFirstSeenColumn,
                 IncludeLastSeenTimestamp = ShowLastSeenColumn,
                 IncludeTagSeenCount = ShowCountColumn,
+                IncludePcBits = ShowPcBitsColumn,
             },
         };
     }

@@ -31,6 +31,7 @@ public sealed class ReaderFleetService : IAsyncDisposable
 
     public event EventHandler<ReaderStatusChangedEventArgs>? ReaderStatusChanged;
     public event EventHandler<FleetTagObservedEventArgs>? TagObserved;
+    public event EventHandler<ReaderDeviceExceptionEventArgs>? ReaderDeviceExceptionOccurred;
 
     public IReadOnlyList<ReaderStatus> Readers =>
         readers.Values.Select(static reader => reader.Status).OrderBy(static reader => reader.Profile.Name).ToArray();
@@ -49,6 +50,8 @@ public sealed class ReaderFleetService : IAsyncDisposable
         IReaderSession session = sessionFactory.Create(profile);
         var managed = new ManagedReader(profile, session);
         session.TagReported += (_, args) => OnTagReported(managed, args.Report);
+        session.ReaderExceptionOccurred += (_, args) => OnReaderExceptionOccurred(managed, args);
+        session.DeviceInitiatedClosed += (_, _) => OnDeviceInitiatedClosed(managed);
         readers.Add(profile.Id, managed);
         Publish(managed);
         return managed.Status;
@@ -290,6 +293,31 @@ public sealed class ReaderFleetService : IAsyncDisposable
     {
         TagObservation aggregate = aggregates.Add(managed.Status.Profile, report);
         TagObserved?.Invoke(this, new FleetTagObservedEventArgs(managed.Status.Profile, report, aggregate));
+    }
+
+    private void OnReaderExceptionOccurred(ManagedReader managed, ReaderDeviceExceptionEventArgs args)
+    {
+        ReaderDeviceExceptionOccurred?.Invoke(this, args);
+    }
+
+    private async void OnDeviceInitiatedClosed(ManagedReader managed)
+    {
+        // Serialize the status update against in-flight operations (RunAsync / UseAsync) so the
+        // device-initiated close cannot be clobbered by a concurrent op's unconditional Publish.
+        await managed.Gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            managed.Status = managed.Status with
+            {
+                State = StudioReaderState.Faulted,
+                Error = "Reader closed the connection (device-initiated).",
+            };
+            Publish(managed);
+        }
+        finally
+        {
+            managed.Gate.Release();
+        }
     }
 
     private void Publish(ManagedReader managed) =>

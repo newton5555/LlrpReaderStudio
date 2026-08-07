@@ -22,6 +22,36 @@ public sealed class TagAggregateStoreTests
         Assert.Equal((sbyte)-38, result.LastRssi);
     }
 
+    [Fact]
+    public void Add_CapturesPcBitsWhenReported()
+    {
+        var store = new TagAggregateStore();
+        var profile = new ReaderProfile { Name = "Dock A", Host = "reader-a" };
+
+        store.Add(profile, ReportWithPcBits(0x3000), DateTimeOffset.UnixEpoch);
+        TagObservation result = store.Add(profile, ReportWithPcBits(0x3000), DateTimeOffset.UnixEpoch.AddSeconds(1));
+
+        Assert.Equal((ushort)0x3000, result.PcBits);
+        Assert.Equal("3000", result.PcBitsHex);
+    }
+
+    private static TagReport ReportWithPcBits(ushort pcBits) => new(
+        Convert.FromHexString("E2003412"),
+        14150,
+        1,
+        1,
+        1,
+        -42,
+        1,
+        null,
+        null,
+        1,
+        null,
+        null,
+        null,
+        null,
+        pcBits);
+
     private static TagReport Report(ushort count, ushort antenna, sbyte rssi) => new(
         Convert.FromHexString("E2003412"),
         14150,

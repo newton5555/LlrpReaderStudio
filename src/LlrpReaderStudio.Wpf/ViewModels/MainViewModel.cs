@@ -76,6 +76,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         this.fleet.ReaderStatusChanged += OnReaderStatusChanged;
         this.fleet.TagObserved += OnTagObserved;
+        this.fleet.ReaderDeviceExceptionOccurred += OnReaderDeviceExceptionOccurred;
 
         InventoryVM.ToggleInventoryRequested += OnToggleInventoryRequested;
         InventoryVM.ClearTagsRequested += OnClearTagsRequested;
@@ -393,6 +394,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         });
     }
 
+    private void OnReaderDeviceExceptionOccurred(object? sender, ReaderDeviceExceptionEventArgs args)
+    {
+        logger.LogWarning("Reader reported an internal exception: {Message} (ROSpec {ROSpecId}, Antenna {AntennaId})",
+            args.Message, args.ROSpecId, args.AntennaId);
+        PostToUi(() => StatusMessage = $"Reader reported an exception: {args.Message}");
+    }
+
     private void OnTagObserved(object? sender, FleetTagObservedEventArgs args)
     {
         if (isDisposing)
@@ -564,7 +572,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             ReaderSettingsSnapshot snapshot = await fleet.QuerySettingsAsync(reader.Id, CancellationToken.None);
-            return snapshot.Inventory?.Settings
+            return snapshot.ManagedRoSpec?.Inventory
                 ?? snapshot.Settings.Inventory
                 ?? new InventorySettings();
         }
@@ -595,6 +603,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         isDisposing = true;
         fleet.ReaderStatusChanged -= OnReaderStatusChanged;
         fleet.TagObserved -= OnTagObserved;
+        fleet.ReaderDeviceExceptionOccurred -= OnReaderDeviceExceptionOccurred;
         InventoryVM.ToggleInventoryRequested -= OnToggleInventoryRequested;
         InventoryVM.ClearTagsRequested -= OnClearTagsRequested;
         AddDataSourceVM.DataSourceSubmitted -= OnAddDataSourceSubmitted;

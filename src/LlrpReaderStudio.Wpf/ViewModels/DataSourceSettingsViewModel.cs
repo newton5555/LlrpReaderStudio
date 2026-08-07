@@ -299,7 +299,7 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             await EnsureConnectedAndLoadCapabilitiesAsync(reader.Id, cancellationToken);
 
             ReaderSettingsSnapshot snapshot = await fleet.QuerySettingsAsync(reader.Id, cancellationToken);
-            InventorySettings? inventory = snapshot.Inventory?.Settings ?? snapshot.Settings.Inventory;
+            InventorySettings? inventory = snapshot.ManagedRoSpec?.Inventory ?? snapshot.Settings.Inventory;
             if (inventory is not null)
             {
                 settingsDraft = snapshot.Settings with { Inventory = inventory };

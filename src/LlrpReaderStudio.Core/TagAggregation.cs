@@ -6,6 +6,8 @@ namespace LlrpReaderStudio.Core;
 public sealed record TagObservation(
     string Epc,
     string Tid,
+    ushort? PcBits,
+    string? PcBitsHex,
     long ReadCount,
     DateTimeOffset FirstSeen,
     DateTimeOffset LastSeen,
@@ -39,6 +41,11 @@ public sealed class TagAggregateStore
             if (!string.IsNullOrWhiteSpace(tid))
             {
                 observation.Tid = tid;
+            }
+            if (report.PcBits is ushort pcBits)
+            {
+                observation.PcBits = pcBits;
+                observation.PcBitsHex = pcBits.ToString("X4");
             }
             observation.LastSeen = timestamp;
             observation.LastRssi = report.PeakRssi;
@@ -79,6 +86,8 @@ public sealed class TagAggregateStore
     {
         public string Epc { get; } = epc;
         public string Tid { get; set; } = string.Empty;
+        public ushort? PcBits { get; set; }
+        public string? PcBitsHex { get; set; }
         public long ReadCount { get; set; }
         public DateTimeOffset FirstSeen { get; } = firstSeen;
         public DateTimeOffset LastSeen { get; set; } = firstSeen;
@@ -90,6 +99,8 @@ public sealed class TagAggregateStore
         public TagObservation Snapshot() => new(
             Epc,
             Tid,
+            PcBits,
+            PcBitsHex,
             ReadCount,
             FirstSeen,
             LastSeen,
