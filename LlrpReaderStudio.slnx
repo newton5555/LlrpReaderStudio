@@ -7,4 +7,10 @@
   <Folder Name="/tests/">
     <Project Path="tests/LlrpReaderStudio.Core.Tests/LlrpReaderStudio.Core.Tests.csproj" />
   </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/firmware-llrp-extension-migration-vision.md" />
+    <File Path="docs/impinj-reader-studio-plan.md" />
+    <File Path="docs/llrp-framework-vision.md" />
+    <File Path="docs/multi-vendor-llrp-refactor-plan.md" />
+  </Folder>
 </Solution>
