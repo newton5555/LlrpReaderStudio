@@ -38,6 +38,7 @@ public sealed class ReaderProfileRepository
                 Host = reader.Host,
                 Port = reader.Port,
                 EnableImpinjExtensions = reader.EnableImpinjExtensions,
+                LlrpVersion = (LlrpProtocolVersionOption)reader.LlrpVersion,
             }, reader.IsEnabled, reader.LastCheckedAtUtc, reader.LastError, reader.Model, reader.Firmware))
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -67,6 +68,7 @@ public sealed class ReaderProfileRepository
         entity.Host = profile.Host;
         entity.Port = profile.Port;
         entity.EnableImpinjExtensions = profile.EnableImpinjExtensions;
+        entity.LlrpVersion = (int)profile.LlrpVersion;
         entity.IsEnabled = isEnabled;
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -160,6 +162,7 @@ public sealed class ReaderProfileRepository
         await AddColumnIfMissingAsync(connection, columns, "LastError", "TEXT NULL", cancellationToken);
         await AddColumnIfMissingAsync(connection, columns, "Model", "TEXT NULL", cancellationToken);
         await AddColumnIfMissingAsync(connection, columns, "Firmware", "TEXT NULL", cancellationToken);
+        await AddColumnIfMissingAsync(connection, columns, "LlrpVersion", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
     }
 
     private static async Task AddColumnIfMissingAsync(

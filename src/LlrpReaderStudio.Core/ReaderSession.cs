@@ -60,7 +60,14 @@ public sealed class LlrpReaderSessionFactory : IReaderSessionFactory
     {
         ArgumentNullException.ThrowIfNull(profile);
         profile.Validate();
-        var builder = new LlrpReaderBuilder(profile.Host).WithPort(profile.Port);
+        var builder = new LlrpReaderBuilder(profile.Host)
+            .WithPort(profile.Port)
+            .WithProtocolVersionPolicy(profile.LlrpVersion switch
+            {
+                LlrpProtocolVersionOption.Force101 => LlrpProtocolVersionPolicy.Force101,
+                LlrpProtocolVersionOption.Force11 => LlrpProtocolVersionPolicy.Force11,
+                _ => LlrpProtocolVersionPolicy.Auto,
+            });
         builder.WithLoggerFactory(loggerFactory);
         if (profile.EnableImpinjExtensions)
         {

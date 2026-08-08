@@ -19,6 +19,8 @@ public sealed class ReaderProfileEntity
 
     public bool EnableImpinjExtensions { get; set; } = true;
 
+    public int LlrpVersion { get; set; } = 0;
+
     public bool IsEnabled { get; set; } = true;
 
     public bool AutoReconnect { get; set; } = false;

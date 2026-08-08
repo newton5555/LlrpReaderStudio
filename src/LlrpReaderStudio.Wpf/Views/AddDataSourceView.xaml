@@ -77,6 +77,14 @@
                                     <TextBlock Text="LLRP Port:" VerticalAlignment="Center" FontWeight="Bold" />
                                     <TextBox Grid.Column="1" Text="{Binding PortText}" Padding="6" Width="100" HorizontalAlignment="Left" />
                                 </Grid>
+                                <Grid Margin="0,10,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="LLRP Version:" VerticalAlignment="Center" FontWeight="Bold" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding LlrpVersionValues}" SelectedItem="{Binding LlrpVersion}" Width="160" HorizontalAlignment="Left" ToolTip="Auto: probe 1.1, fall back to 1.0.1; Force 1.0.1: no negotiation; Force 1.1: require 1.1." />
+                                </Grid>
                             </StackPanel>
                         </Border>
                     </Expander>

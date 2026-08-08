@@ -98,7 +98,14 @@ public partial class InventoryViewModel : PageViewModelBase
 
     public ObservableCollection<TagRowViewModel> Tags { get; } = [];
 
-    public int UniqueTagCount => Tags.Count;
+    /// <summary>
+    /// When false, tag reports only feed the statistics (read rate, unique count) and are not
+    /// rendered into the DataGrid. Used while the tag-rendering path is still under test.
+    /// </summary>
+    public bool RenderTags { get; set; } = true;
+
+    /// <summary>Number of unique tags seen. Backed by the tag index so it stays correct even when table rendering is off.</summary>
+    public int UniqueTagCount => RenderTags ? Tags.Count : tagIndex.Count;
 
     public event Action? ToggleInventoryRequested;
 
@@ -180,7 +187,13 @@ public partial class InventoryViewModel : PageViewModelBase
 
     public void StartTimer()
     {
-        IsInventoryRunning = true;
+        // Write IsInventoryRunning under the same lock EnqueueTag reads it under, so the background
+        // consumer thread always observes the running flag (no stale-cached false that would drop tags).
+        lock (pendingGate)
+        {
+            IsInventoryRunning = true;
+        }
+
         if (!stopwatch.IsRunning)
         {
             stopwatch.Start();
@@ -190,7 +203,11 @@ public partial class InventoryViewModel : PageViewModelBase
 
     public void StopTimer()
     {
-        IsInventoryRunning = false;
+        lock (pendingGate)
+        {
+            IsInventoryRunning = false;
+        }
+
         stopwatch.Stop();
         timer.Stop();
         lock (pendingGate)
@@ -269,9 +286,8 @@ public partial class InventoryViewModel : PageViewModelBase
                 existing.Update(aggregate);
                 totalReadCount += aggregate.ReadCount - previousReadCount;
 
-                // Fast path: the row is usually the most recently read one, which already sits at
-                // the top; only fall back to a position search when it does not.
-                if (!ReferenceEquals(Tags[0], existing))
+                // Reordering is render-only; when table rendering is off, only the statistics matter.
+                if (RenderTags && !ReferenceEquals(Tags[0], existing))
                 {
                     int index = Tags.IndexOf(existing);
                     if (index > 0)
@@ -285,10 +301,17 @@ public partial class InventoryViewModel : PageViewModelBase
             {
                 var row = new TagRowViewModel(1, aggregate);
                 tagIndex.Add(aggregate.Epc, row);
-                Tags.Insert(0, row);
                 totalReadCount += aggregate.ReadCount;
-                reindex = true;
-                TrimToLimit();
+                if (RenderTags)
+                {
+                    Tags.Insert(0, row);
+                    reindex = true;
+                    TrimToLimit();
+                }
+                else
+                {
+                    TrimTagIndex();
+                }
             }
         }
 
@@ -318,6 +341,28 @@ public partial class InventoryViewModel : PageViewModelBase
             tagIndex.Remove(removed.Epc);
             totalReadCount -= removed.ReadCount;
             Tags.RemoveAt(last);
+        }
+    }
+
+    /// <summary>
+    /// Bounds the tag index when table rendering is off (RenderTags=false): without rows in the
+    /// DataGrid there is no TrimToLimit to cap growth, so prune the oldest entries explicitly.
+    /// </summary>
+    private void TrimTagIndex()
+    {
+        if (tagIndex.Count <= MaxTagRows)
+        {
+            return;
+        }
+
+        int excess = tagIndex.Count - MaxTagRows;
+        foreach (string epc in tagIndex
+            .OrderBy(static pair => pair.Value.LastSeen)
+            .Take(excess)
+            .Select(static pair => pair.Key)
+            .ToArray())
+        {
+            tagIndex.Remove(epc);
         }
     }
 

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LlrpReaderStudio.Core;
 using LlrpReaderStudio.Infrastructure.Discovery;
 
 namespace LlrpReaderStudio.ViewModels;
@@ -17,6 +18,12 @@ public partial class AddDataSourceViewModel : PageViewModelBase
 
     [ObservableProperty]
     private string portText = "5084";
+
+    [ObservableProperty]
+    private LlrpProtocolVersionOption llrpVersion = LlrpProtocolVersionOption.Auto;
+
+    public IReadOnlyList<LlrpProtocolVersionOption> LlrpVersionValues { get; } =
+        Enum.GetValues<LlrpProtocolVersionOption>();
 
     [ObservableProperty]
     private bool isAdvancedExpanded;
@@ -37,7 +44,7 @@ public partial class AddDataSourceViewModel : PageViewModelBase
     }
 
     public ObservableCollection<DiscoveredReaderViewModel> DiscoveredDevices { get; } = [];
-    public event Func<string, string, int, Task>? DataSourceSubmitted;
+    public event Func<string, string, int, LlrpProtocolVersionOption, Task>? DataSourceSubmitted;
     public event Action? CancelRequested;
 
     [RelayCommand]
@@ -57,7 +64,7 @@ public partial class AddDataSourceViewModel : PageViewModelBase
         Nickname = string.Empty;
         if (DataSourceSubmitted is { } handler)
         {
-            await handler(host, name, port);
+            await handler(host, name, port, LlrpVersion);
         }
     }
 

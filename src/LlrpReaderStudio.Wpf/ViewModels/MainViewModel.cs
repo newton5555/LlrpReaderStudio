@@ -84,9 +84,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         selectedNavigationItem = NavigationItems[0];
 
         this.fleet.ReaderStatusChanged += OnReaderStatusChanged;
-        // TEMP (用户测单启动): 临时取消 tag 事件订阅，隔离 UI 消费链路，验证“开始/启动+清除”流程本身是否正常。
-        // this.fleet.TagObserved += OnTagObserved;
+        this.fleet.TagObserved += OnTagObserved;
         this.fleet.ReaderDeviceExceptionOccurred += OnReaderDeviceExceptionOccurred;
+
+        // TEMP: tag-rendering path is still under test — report observations feed the statistics
+        // (read rate, unique count) but the DataGrid is not populated yet. Set RenderTags=true (and
+        // remove this override) once the table rendering path is verified.
+        InventoryVM.RenderTags = false;
 
         InventoryVM.ToggleInventoryRequested += OnToggleInventoryRequested;
         InventoryVM.ClearTagsRequested += OnClearTagsRequested;
@@ -318,7 +322,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         StatusMessage = $"Removed data source '{reader.Name}'.";
     }
 
-    private async Task OnAddDataSourceSubmitted(string host, string name, int port)
+    private async Task OnAddDataSourceSubmitted(string host, string name, int port, LlrpProtocolVersionOption llrpVersion)
     {
         ReaderProfile? profile = null;
         try
@@ -327,7 +331,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             {
                 Name = name,
                 Host = host,
-                Port = port
+                Port = port,
+                LlrpVersion = llrpVersion,
             };
 
             // Probe first: nothing is registered or persisted until connectivity is verified.

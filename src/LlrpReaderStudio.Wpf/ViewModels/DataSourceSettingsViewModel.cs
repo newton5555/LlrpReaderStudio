@@ -98,13 +98,13 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private string filter1 = string.Empty;
 
     [ObservableProperty]
-    private bool filter1Enabled = true;
+    private bool filter1Enabled;
+
+    [ObservableProperty]
+    private bool filter2Enabled;
 
     [ObservableProperty]
     private string filter2 = string.Empty;
-
-    [ObservableProperty]
-    private bool filter2Enabled = true;
 
     [ObservableProperty]
     private string filter1BitLength = "0";
