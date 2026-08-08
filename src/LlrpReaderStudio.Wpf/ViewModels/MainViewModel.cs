@@ -87,11 +87,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         this.fleet.TagObserved += OnTagObserved;
         this.fleet.ReaderDeviceExceptionOccurred += OnReaderDeviceExceptionOccurred;
 
-        // TEMP: tag-rendering path is still under test — report observations feed the statistics
-        // (read rate, unique count) but the DataGrid is not populated yet. Set RenderTags=true (and
-        // remove this override) once the table rendering path is verified.
-        InventoryVM.RenderTags = false;
-
         InventoryVM.ToggleInventoryRequested += OnToggleInventoryRequested;
         InventoryVM.ClearTagsRequested += OnClearTagsRequested;
         AddDataSourceVM.DataSourceSubmitted += OnAddDataSourceSubmitted;

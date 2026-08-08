@@ -136,7 +136,7 @@
                             </ComboBox>
 
                             <TextBlock Grid.Row="3" Grid.Column="0" Text="Enable Fast ID:" Style="{StaticResource FieldLabelStyle}" />
-                            <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding EnableFastId}" Margin="0,0,0,6" />
+                            <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding EnableFastId}" IsEnabled="{Binding ImpinjExtensionsAvailable}" Margin="0,0,0,6" />
 
                             <TextBlock Grid.Row="4" Grid.Column="0" Text="Estimated Tag Population:" Style="{StaticResource FieldLabelStyle}" />
                             <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Population}" Style="{StaticResource FieldControlStyle}" />
@@ -150,10 +150,10 @@
                             </ComboBox>
 
                             <TextBlock Grid.Row="6" Grid.Column="0" Text="Report Phase Angle:" Style="{StaticResource FieldLabelStyle}" />
-                            <CheckBox Grid.Row="6" Grid.Column="1" IsChecked="{Binding ReportPhaseAngle}" Margin="0,0,0,6" />
+                            <CheckBox Grid.Row="6" Grid.Column="1" IsChecked="{Binding ReportPhaseAngle}" IsEnabled="{Binding ImpinjExtensionsAvailable}" Margin="0,0,0,6" />
 
                             <TextBlock Grid.Row="7" Grid.Column="0" Text="Report Doppler Frequency:" Style="{StaticResource FieldLabelStyle}" />
-                            <CheckBox Grid.Row="7" Grid.Column="1" IsChecked="{Binding ReportDopplerFrequency}" />
+                            <CheckBox Grid.Row="7" Grid.Column="1" IsChecked="{Binding ReportDopplerFrequency}" IsEnabled="{Binding ImpinjExtensionsAvailable}" />
                             </Grid>
                         </DockPanel>
                     </Border>
