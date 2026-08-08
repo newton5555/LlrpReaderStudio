@@ -1,14 +1,16 @@
 # LLRP 应用服务层新项目规划（UI 无关服务库）
 
 > 状态：规划稿（2026-08）
-> 背景：`LlrpReaderStudio` 为一次性 demo / 测试软件，后续不维护。本规划定义正式的多厂商 LLRP 应用服务层（UI 无关类库）。
+> 背景：`LlrpReaderStudio` 为一次性 demo / 测试软件，后续不维护。本规划定义正式的多厂商 LLRP 应用服务层。
+> 当前约束：**服务层当前先只给 WPF 使用**；保持与服务层解耦的独立项目结构，但不追求"必须跨 UI 框架纯净"，未来需要多 UI 时再拆分。
 
 ## 0. 目标与定位
 
-- 新建一个**厂商无关的 LLRP 应用服务层（UI 无关类库）**，作为正式产品长期维护；
+- 新建一个**厂商无关的 LLRP 应用服务层（独立类库）**，作为正式产品长期维护；
+- **当前先为 WPF 服务**：服务层与 UI 解耦（独立项目），但 UI 就是 WPF，不强求抽象成多 UI 兼容；
 - 依赖底层 `LlrpSdk`（标准 LLRP 核心 + 厂商扩展架构），**不重造协议层**；
 - 服务层**不直接依赖** `LlrpSdk.Extensions.Impinj/.Seuic`，厂商能力通过扩展模块接入；
-- 未来 UI（WPF/Maui/控制台）作为独立消费者引用服务层，与服务层分离。
+- 未来若出现第二个 UI 消费者，再评估服务层跨框架化（当前不做）。
 
 ## 1. 关键前提（已核实）
 
@@ -23,24 +25,23 @@
 
 ```
 LLRP.Framework.slnx（新仓库）
-├── LlrpReaderStudio.Services/            ★ 薄应用服务层（UI 无关类库，正式产品）
-│     定位：给任何 UI 框架（WPF/Maui/控制台）复用的设备管理服务；
-│           只封装 SDK 没有的能力，不碰 UI、不依赖 UseWPF
+├── LlrpReaderStudio.Services/            ★ 应用服务层（独立类库，正式产品）
+│     定位：当前先给 WPF 用；独立成库是为了避免 demo 的胖 VM/耦合，不强求跨 UI 框架
 │     依赖: LlrpSdk (PackageReference) + LlrpSdk.Extensions.Abstractions
 │     ├── Lifecycle/      Reader 注册 / 激活 / 短连接 / Enable 语义
 │     ├── Settings/       能力驱动设置模型（ReaderFeatureCatalog / EffectiveSettingsLayout）
 │     ├── Inventory/      标准 Inventory / TagReport / TagAccess 协调层
 │     ├── Capabilities/   ReaderCapabilities 内存缓存（不从 DB 持久化）
 │     └── Modules/        IVendorExtensionModule 抽象（不直接依赖厂商包）
-├── LlrpReaderStudio.App.Wpf/            新 UI 应用（WPF，引用服务层，可换其他 UI 框架）
+├── LlrpReaderStudio.App.Wpf/            新 UI 应用（WPF，引用服务层）
 ├── LlrpReaderStudio.Services.Tests/     xunit + LlrpVirtualReader（虚拟 reader 测试）
 └── (可选) LlrpReaderStudio.Extensions.Impinj/   Impinj 扩展模块（服务层外置）
 ```
 
 **设计铁律**：
-- 服务层**只依赖 `LlrpSdk` + `LlrpSdk.Extensions.Abstractions`**，不依赖任何 UI 框架（`netstandard`/`net10.0`，无 `UseWPF`）；
+- 服务层**只依赖 `LlrpSdk` + `LlrpSdk.Extensions.Abstractions`**（不依赖 UI 框架）；当前 UI 是 WPF，但服务层本身不引用 `UseWPF`；
 - 服务层**不直接依赖** `LlrpSdk.Extensions.Impinj/.Seuic`，厂商能力通过注册 `IVendorExtensionModule` 加载，杜绝 demo 中"Core 直接 using Impinj"的病；
-- UI 应用（WPF 或未来其他框架）只负责展示与交互，设备生命周期/能力聚合/设置编译全部在服务层。
+- UI 应用只负责展示与交互，设备生命周期/能力聚合/设置编译全部在服务层。
 
 ## 3. 模块职责与核心 API 草案
 
@@ -171,7 +172,7 @@ public interface IVendorExtensionModule
 - 至少一台 Impinj 和一台标准 LLRP 1.0.1 设备可分别及同时运行；
 - 未知厂商设备：连接、显示身份/能力、标准盘存，不出现 Impinj 参数；
 - 能力驱动 UI：不同能力快照生成不同设置布局，无法选择/发送不支持参数；
-- 服务层与 UI 解耦：换 UI 不改服务层。
+- 服务层与 UI 解耦：服务层独立成库且不引用 `UseWPF`，为未来可能的其他 UI 留余地（当前先 WPF）。
 
 ## 7. 风险与对策
 
