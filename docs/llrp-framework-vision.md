@@ -1,7 +1,7 @@
 # LLRP 应用服务层 + WPF UI 新项目框架与开发计划
 
 > 状态：规划稿（2026-08）
-> 背景：`LlrpReaderStudio` 为一次性 demo / 测试软件，后续不维护。本规划定义正式的多厂商 LLRP 应用：**应用服务层（类库）+ WPF UI**。
+> 背景：`LlrpReaderStudio` 是现有实现，**新软件（完整支持多厂商 LLRP reader 的 UI 软件）将在此基础上演化**，而非另起炉灶。本规划定义正式的**应用服务层（类库）+ WPF UI**。
 > 当前约束：**服务层当前先只给 WPF 用**；服务层独立成库（避免 demo 胖 VM/耦合），不强求跨 UI 框架纯净，未来需要多 UI 时再拆分。
 
 ## 0. 目标与定位
@@ -19,7 +19,7 @@
 | 底层 SDK | `LlrpSdk 1.2.0` 已是"标准 LLRP 核心 + `LlrpSdk.Extensions.Abstractions`（IReaderExtension 等）+ Impinj/Seuic 扩展"架构 |
 | SDK 引用方式 | 目标用 `PackageReference`（本机 NuGet cache 有 `llrpsdk`、`llrpsdk.extensions.impinj` 1.2.0） |
 | 标准 LLRP 支持 | 已实测支持 Impinj 与标准 LLRP 1.0.1；LLRP 版本策略（Auto/Force101/Force11）已在 demo 打通 |
-| demo 角色 | 一次性测试软件，贡献"设计经验"而非可抄代码 |
+| demo 角色 | 现有实现的**直接基础**：完整支持多厂商 LLRP reader 的 UI 软件将从它演化，部分代码（生命周期/防卡死/隔离）可直接迁移，不是"只抄设计" |
 
 ## 2. 项目结构（一个解决方案、多个职责分离项目）
 
@@ -168,17 +168,18 @@ Views/  +  ViewModels/
 
 ## 4. 与 demo（LlrpReaderStudio）的迁移边界
 
-**不迁移代码，只迁移设计经验**：
+**迁移原则**：现有实现是基础，**能直接迁移的直接迁移，该重写的重写**（最终产出是完整的支持多厂商 LLRP reader 的 UI 软件）：
 
 | demo 项 | 迁移方式 |
 |---|---|
-| ReaderFleetService 生命周期 | 提炼为 ReaderManager（厂商无关化） |
-| 短连接 / Enable 语义 | 直接沿用（已修正文档语义） |
-| 有界 Channel 防卡死 | 沿用（泵线程入队 + 后台聚合） |
-| capabilities 内存缓存 | 沿用 |
-| per-reader 状态隔离 | 沿用（字典 ReaderId→Handle） |
+| ReaderFleetService 生命周期 | **直接迁移**，提炼为 ReaderManager（厂商无关化） |
+| 短连接 / Enable 语义 | **直接沿用**（已修正文档语义） |
+| 有界 Channel 防卡死 | **直接沿用**（泵线程入队 + 后台聚合） |
+| capabilities 内存缓存 | **直接沿用** |
+| per-reader 状态隔离 | **直接沿用**（字典 ReaderId→Handle） |
+| Inventory / TagMemory / Diagnostics 页面 | **可迁移**，随 UI 重构落位 |
 | DataSourceSettingsViewModel（1613 行） | **不迁移**，重写为能力驱动设置模型（EffectiveSettingsLayout） |
-| MainWindow/导航/MahApps 风格 | 可参考，但重写（结构简化） |
+| MainWindow/导航/MahApps 风格 | 可沿用主题与导航模式，结构重构 |
 | LlrpSdk 引用 | 用 PackageReference，不用 demo 的引用方式 |
 
 ## 5. 分阶段实施计划
