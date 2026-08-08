@@ -41,6 +41,10 @@ public partial class ReaderItemViewModel : ObservableObject
     [ObservableProperty]
     private string lastCheckedText = string.Empty;
 
+    /// <summary>Whether this reader's configuration was successfully synced to the local cache at startup.</summary>
+    [ObservableProperty]
+    private bool configSynced;
+
     public ReaderItemViewModel(ReaderStatus status, bool isEnabled = true, Action<ReaderItemViewModel>? onDeleteRequested = null)
     {
         Id = status.Profile.Id;

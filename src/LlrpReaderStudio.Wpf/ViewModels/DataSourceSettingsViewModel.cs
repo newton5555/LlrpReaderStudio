@@ -17,6 +17,7 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private readonly InventoryPresetRepository inventoryPresets;
     private ReaderSettings? settingsDraft = new();
     private bool suppressGpoUpdate;
+    private int gpoOperationsInFlight;
     private readonly Dictionary<string, ushort> txPowerIndexesByDisplay = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ushort> rxSensitivityIndexesByDisplay = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<ushort, string> txPowerDisplaysByIndex = [];
@@ -384,6 +385,10 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         {
             StatusMessage = $"Query failed: {ex.Message}";
         }
+        finally
+        {
+            await DisconnectIfNotInventoryingAsync(readerId);
+        }
     }
 
     [RelayCommand]
@@ -407,6 +412,10 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         catch (Exception ex)
         {
             StatusMessage = $"Load defaults failed: {ex.Message}";
+        }
+        finally
+        {
+            await DisconnectIfNotInventoryingAsync(readerId);
         }
     }
 
@@ -441,6 +450,10 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         {
             StatusMessage = $"Apply settings failed: {ex.Message}";
         }
+        finally
+        {
+            await DisconnectIfNotInventoryingAsync(readerId);
+        }
     }
 
     [RelayCommand]
@@ -468,6 +481,9 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             return;
         }
 
+        // Multiple GPO switches can be toggled quickly; only disconnect once the last in-flight
+        // operation finishes, otherwise one GPO's disconnect kills another GPO's session.
+        int inFlight = Interlocked.Increment(ref gpoOperationsInFlight);
         try
         {
             StatusMessage = $"{SelectedReaderName}: Connecting before setting GPO {portNumber}...";
@@ -479,6 +495,13 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         {
             RevertGpo(portNumber, oldValue);
             StatusMessage = $"GPO {portNumber} update failed: {ex.Message}";
+        }
+        finally
+        {
+            if (Interlocked.Decrement(ref gpoOperationsInFlight) == 0)
+            {
+                await DisconnectIfNotInventoryingAsync(readerId);
+            }
         }
     }
 
@@ -893,6 +916,14 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
 
     private async Task EnsureConnectedAndLoadCapabilitiesAsync(Guid readerId, CancellationToken cancellationToken = default)
     {
+        // Never steal a connection that is mid-inventory: ConnectAsync would overwrite the
+        // Inventorying state and the disconnect below would tear down the running ROSpec.
+        ReaderStatus before = fleet.Readers.First(current => current.Profile.Id == readerId);
+        if (before.State is StudioReaderState.Inventorying or StudioReaderState.Stopping or StudioReaderState.Connecting)
+        {
+            throw new InvalidOperationException("The reader is busy (inventory running); stop it before changing settings.");
+        }
+
         await fleet.ConnectAsync(readerId, cancellationToken);
         ReaderCapabilities? capabilities = fleet.GetCapabilities(readerId);
         if (capabilities is null)
@@ -901,6 +932,28 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         }
 
         RefreshOptions(capabilities);
+    }
+
+    /// <summary>
+    /// Drops the connection after a settings operation unless the reader is mid-inventory, where
+    /// disconnecting would tear down the running ROSpec and stop tag reports.
+    /// </summary>
+    private async Task DisconnectIfNotInventoryingAsync(Guid readerId)
+    {
+        try
+        {
+            ReaderStatus status = fleet.Readers.First(current => current.Profile.Id == readerId);
+            if (status.State is StudioReaderState.Inventorying or StudioReaderState.Stopping or StudioReaderState.Connecting)
+            {
+                return;
+            }
+
+            await fleet.DisconnectAsync(readerId, CancellationToken.None);
+        }
+        catch
+        {
+            // Best effort; the reader stays connected if the state could not be determined.
+        }
     }
 
     private void RefreshOptions(ReaderCapabilities capabilities)

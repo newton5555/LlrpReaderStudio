@@ -67,8 +67,22 @@ public partial class TagRowViewModel : ObservableObject
         {
             PcBits = observation.PcBitsHex;
         }
-        Readers = string.Join(", ", observation.Readers);
-        Antennas = string.Join(", ", observation.Antennas);
+
+        // Rebuild only when the joined text actually changes; the aggregator returns fresh arrays
+        // on every report, so comparing before assigning avoids a PropertyChanged storm on updates
+        // of an already-known row.
+        string newReaders = string.Join(", ", observation.Readers);
+        if (!string.Equals(Readers, newReaders, StringComparison.Ordinal))
+        {
+            Readers = newReaders;
+        }
+
+        string newAntennas = string.Join(", ", observation.Antennas);
+        if (!string.Equals(Antennas, newAntennas, StringComparison.Ordinal))
+        {
+            Antennas = newAntennas;
+        }
+
         OnPropertyChanged(nameof(SeenCount));
         OnPropertyChanged(nameof(ReaderName));
         OnPropertyChanged(nameof(AntennaId));

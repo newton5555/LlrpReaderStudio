@@ -83,6 +83,10 @@
             <views:DataSourceSettingsView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type vm:ReaderUnavailableViewModel}">
+            <views:ReaderUnavailableView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:TagMemoryViewModel}">
             <views:TagMemoryView />
         </DataTemplate>
@@ -249,6 +253,16 @@
         <!-- Main Dynamic Content Area -->
         <Grid Grid.Row="0" Grid.Column="1">
             <ContentControl Content="{Binding CurrentPage}" />
+
+            <!-- Busy overlay: covers only the settings/content area while startup syncs reader configs -->
+            <Border Background="#66000000"
+                    Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <mah:ProgressRing IsActive="True" />
+                    <TextBlock Text="{Binding BusyText}" FontSize="15" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,14,0,0" />
+                </StackPanel>
+            </Border>
         </Grid>
 
         <!-- Bottom Status Bar -->
@@ -269,5 +283,6 @@
                 </StackPanel>
             </Grid>
         </Border>
-    </Grid>
+
+        </Grid>
 </mah:MetroWindow>

@@ -39,6 +39,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     private string statusMessage = "Click (+) under DATA SOURCES to add a reader.";
 
+    /// <summary>True while startup is syncing each reader's configuration; blocks UI interaction.</summary>
+    [ObservableProperty]
+    private bool isBusy;
+
+    [ObservableProperty]
+    private string busyText = string.Empty;
+
     public MainViewModel(
         ReaderFleetService fleet,
         ReaderProfileRepository readerProfiles,
@@ -46,6 +53,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         InventoryViewModel inventoryViewModel,
         AddDataSourceViewModel addDataSourceViewModel,
         DataSourceSettingsViewModel dataSourceSettingsViewModel,
+        ReaderUnavailableViewModel readerUnavailableViewModel,
         TagMemoryViewModel tagMemoryViewModel,
         SettingsViewModel settingsViewModel,
         AboutViewModel aboutViewModel,
@@ -58,6 +66,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         InventoryVM = inventoryViewModel;
         AddDataSourceVM = addDataSourceViewModel;
         DataSourceSettingsVM = dataSourceSettingsViewModel;
+        ReaderUnavailableVM = readerUnavailableViewModel;
         TagMemoryVM = tagMemoryViewModel;
         SettingsVM = settingsViewModel;
         AboutVM = aboutViewModel;
@@ -75,7 +84,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         selectedNavigationItem = NavigationItems[0];
 
         this.fleet.ReaderStatusChanged += OnReaderStatusChanged;
-        this.fleet.TagObserved += OnTagObserved;
+        // TEMP (用户测单启动): 临时取消 tag 事件订阅，隔离 UI 消费链路，验证“开始/启动+清除”流程本身是否正常。
+        // this.fleet.TagObserved += OnTagObserved;
         this.fleet.ReaderDeviceExceptionOccurred += OnReaderDeviceExceptionOccurred;
 
         InventoryVM.ToggleInventoryRequested += OnToggleInventoryRequested;
@@ -83,11 +93,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         AddDataSourceVM.DataSourceSubmitted += OnAddDataSourceSubmitted;
         AddDataSourceVM.CancelRequested += OnCancelToInventoryRequested;
         DataSourceSettingsVM.CancelRequested += OnCancelToInventoryRequested;
+        ReaderUnavailableVM.RetryRequested += OnReaderUnavailableRetryRequested;
     }
 
     public InventoryViewModel InventoryVM { get; }
     public AddDataSourceViewModel AddDataSourceVM { get; }
     public DataSourceSettingsViewModel DataSourceSettingsVM { get; }
+    public ReaderUnavailableViewModel ReaderUnavailableVM { get; }
     public TagMemoryViewModel TagMemoryVM { get; }
     public SettingsViewModel SettingsVM { get; }
     public AboutViewModel AboutVM { get; }
@@ -131,23 +143,62 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private async Task InitializeEnabledReadersAsync()
     {
-        foreach (ReaderItemViewModel reader in Readers.Where(static reader => reader.IsEnabled).ToArray())
+        IsBusy = true;
+        BusyText = "Syncing reader configurations...";
+        try
         {
-            try
+            foreach (ReaderItemViewModel reader in Readers.Where(static reader => reader.IsEnabled).ToArray())
             {
-                await fleet.ConnectAsync(reader.Id, CancellationToken.None);
-                ReaderStatus status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
-                await readerProfiles.UpdateStatusAsync(reader.Id, DateTime.UtcNow, status.Model, status.Firmware, null, CancellationToken.None);
+                try
+                {
+                    BusyText = $"Syncing configuration for '{reader.Name}'...";
+                    await fleet.ConnectAsync(reader.Id, CancellationToken.None);
+                    ReaderStatus status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
+
+                    // Sync the reader's current configuration to the local cache, then drop the
+                    // connection (short-lived probe session, like the reference tool): later pages read
+                    // the cache instead of holding a connection open. Reads/saves (SAVE/REFRESH) and
+                    // inventory re-establish a connection on demand.
+                    ReaderSettingsSnapshot snapshot = await fleet.QuerySettingsAsync(reader.Id, CancellationToken.None);
+                    await inventoryPresets.SaveDefaultAsync(reader.Id, snapshot.Settings, CancellationToken.None);
+                    await fleet.DisconnectAsync(reader.Id, CancellationToken.None);
+
+                    reader.ConfigSynced = true;
+                    await readerProfiles.UpdateStatusAsync(reader.Id, DateTime.UtcNow, status.Model, status.Firmware, null, CancellationToken.None);
+
+                    // The reader may have been auto-selected at startup before sync finished; refresh
+                    // the page so the settings view (backed by the now-fresh cache) appears — but only
+                    // if the user has not already navigated away from the reader pages.
+                    if (ReferenceEquals(SelectedReader, reader) &&
+                        CurrentPage is DataSourceSettingsViewModel or ReaderUnavailableViewModel)
+                    {
+                        await DataSourceSettingsVM.LoadCachedSettingsAsync(reader, CancellationToken.None);
+                        CurrentPage = DataSourceSettingsVM;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // A reader that cannot be reached at startup is disabled automatically so it does
+                    // not keep being selected for operations; its settings page is replaced by the
+                    // "unavailable" placeholder until a retry succeeds.
+                    reader.ConfigSynced = false;
+                    reader.IsEnabled = false;
+                    await readerProfiles.SetEnabledAsync(reader.Id, false, CancellationToken.None);
+                    await readerProfiles.UpdateStatusAsync(reader.Id, DateTime.UtcNow, null, null, ex.Message, CancellationToken.None);
+                    StatusMessage = $"Could not initialize '{reader.Name}': {ex.Message} (disabled).";
+
+                    if (ReferenceEquals(SelectedReader, reader) &&
+                        CurrentPage is DataSourceSettingsViewModel or ReaderUnavailableViewModel)
+                    {
+                        CurrentPage = ShowReaderUnavailable(reader);
+                    }
+                }
             }
-            catch (Exception ex)
-            {
-                // A reader that cannot be reached at startup is disabled automatically so it does
-                // not keep being selected for operations; the user can re-enable and re-verify later.
-                reader.IsEnabled = false;
-                await readerProfiles.SetEnabledAsync(reader.Id, false, CancellationToken.None);
-                await readerProfiles.UpdateStatusAsync(reader.Id, DateTime.UtcNow, null, null, ex.Message, CancellationToken.None);
-                StatusMessage = $"Could not initialize '{reader.Name}': {ex.Message} (disabled).";
-            }
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = string.Empty;
         }
     }
     partial void OnCurrentPageChanged(PageViewModelBase value)
@@ -176,14 +227,19 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     partial void OnSelectedReaderChanged(ReaderItemViewModel? value)
     {
-        // Selecting a reader never implicitly connects; the settings page shows the cached/last
-        // known values and the user refreshes explicitly when a live query is needed.
+        // Selecting a reader never implicitly connects. When its configuration was synced to the
+        // cache at startup, the settings page shows those cached values; otherwise the "unavailable"
+        // placeholder (with Retry) is shown instead of a half-empty settings page.
         DataSourceSettingsVM.SetSelectedReader(value);
 
-        if (value is not null)
+        if (value is null)
         {
-            CurrentPage = DataSourceSettingsVM;
+            return;
         }
+
+        CurrentPage = value.ConfigSynced
+            ? DataSourceSettingsVM
+            : ShowReaderUnavailable(value);
     }
 
     [RelayCommand]
@@ -212,13 +268,28 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (SelectedReader != reader)
         {
             SelectedReader = reader;
+        }
+
+        if (!reader.ConfigSynced)
+        {
+            // Startup sync failed for this reader: show the placeholder (hint + Retry) instead of
+            // a settings page with no real data.
+            CurrentPage = ShowReaderUnavailable(reader);
             return;
         }
 
-        // Opening the settings page for an already-selected reader shows the cached settings;
-        // live queries are explicit (REFRESH SETTINGS).
+        // Startup already synced the reader's configuration to the local cache, so opening the
+        // settings page is instant and offline. REFRESH SETTINGS re-queries the device on demand.
         await DataSourceSettingsVM.LoadCachedSettingsAsync(reader, CancellationToken.None);
         CurrentPage = DataSourceSettingsVM;
+    }
+
+    private PageViewModelBase ShowReaderUnavailable(ReaderItemViewModel reader)
+    {
+        ReaderUnavailableVM.Show(reader.Name, string.IsNullOrWhiteSpace(reader.LastError)
+            ? "The reader could not be reached during startup."
+            : reader.LastError);
+        return ReaderUnavailableVM;
     }
 
     [RelayCommand]
@@ -307,67 +378,125 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
-        var started = new List<Guid>();
+        var targets = enabledReaders
+            .Select(reader => new ReaderStartTarget(reader.Id, reader.State))
+            .ToArray();
+
+        var connected = new List<Guid>();
         try
         {
-            foreach (ReaderItemViewModel reader in enabledReaders)
+            // UI-side state first. Every Start begins from an empty table (rows, pending queue, and
+            // the upstream aggregate store), then the timer/drain is armed BEFORE any reader starts
+            // reporting so early observations are consumed rather than discarded.
+            InventoryVM.ResetTable();
+            InventoryVM.StartTimer();
+
+            // Device I/O (connect + start ROSpec) runs off the UI thread: these wait on the session
+            // gate and network RPCs and must never block the UI (a stalled device made "Stop" freeze
+            // the whole window). The reader ids/states were snapshotted on the UI thread; the pool
+            // thread only drives fleet operations and never re-queries the (unsafe) status collection.
+            connected = await Task.Run(async () =>
             {
-                ReaderStatus status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
-                if (status.State == StudioReaderState.Inventorying)
+                var ids = new List<Guid>();
+                foreach (ReaderStartTarget target in targets)
                 {
-                    continue;
+                    if (target.State is StudioReaderState.Inventorying or StudioReaderState.Connecting)
+                    {
+                        continue;
+                    }
+
+                    if (target.State != StudioReaderState.Connected)
+                    {
+                        await fleet.ConnectAsync(target.Id, CancellationToken.None);
+                    }
+
+                    await StartReaderInventoryAsync(target.Id, CancellationToken.None);
+                    ids.Add(target.Id);
                 }
 
-                if (status.State != StudioReaderState.Connected)
-                {
-                    await fleet.ConnectAsync(reader.Id, CancellationToken.None);
-                }
+                return ids;
+            }).ConfigureAwait(true);
 
-                await StartReaderInventoryAsync(reader);
-                started.Add(reader.Id);
-            }
-
-            if (started.Count == 0)
+            if (connected.Count == 0)
             {
+                InventoryVM.StopTimer();
                 StatusMessage = "No reader could be connected for inventory.";
                 return;
             }
 
-            InventoryVM.StartTimer();
-            StatusMessage = $"Started inventory on {started.Count} reader(s).";
+            StatusMessage = $"Started inventory on {connected.Count} reader(s).";
         }
         catch (Exception ex)
         {
-            await StopAllInventoryAsync();
-            StatusMessage = $"Could not start inventory; all reader connections were closed: {ex.Message}";
+            // Best-effort stop only for the readers this run tried, so a failure on one reader does
+            // not tear down readers that were already inventorying before this Start.
+            await Task.Run(async () =>
+            {
+                foreach (ReaderStartTarget target in targets)
+                {
+                    try
+                    {
+                        await fleet.StopInventoryAsync(target.Id, CancellationToken.None);
+                    }
+                    catch
+                    {
+                        // Best effort during a failed start.
+                    }
+
+                    try
+                    {
+                        await fleet.DisconnectAsync(target.Id, CancellationToken.None);
+                    }
+                    catch
+                    {
+                        // Best effort during a failed start.
+                    }
+                }
+            }).ConfigureAwait(true);
+
+            InventoryVM.StopTimer();
+            StatusMessage = $"Could not start inventory; reader connections were closed: {ex.Message}";
         }
     }
 
+    private readonly record struct ReaderStartTarget(Guid Id, StudioReaderState State);
+
     private async Task StopAllInventoryAsync()
     {
-        InventoryVM.StopTimer();
-        List<Exception> errors = [];
-        foreach (ReaderItemViewModel reader in Readers.ToArray())
+        // Snapshot the UI collection on the UI thread; the device I/O below runs on a pool thread.
+        ReaderItemViewModel[] readers = Readers.ToArray();
+        List<Exception> errors = await Task.Run(async () =>
         {
-            try
+            var collected = new List<Exception>();
+            foreach (ReaderItemViewModel reader in readers)
             {
-                ReaderStatus status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
-                if (status.State is StudioReaderState.Inventorying or StudioReaderState.Stopping)
+                try
                 {
-                    await fleet.StopInventoryAsync(reader.Id, CancellationToken.None);
-                }
+                    ReaderStatus status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
+                    if (status.State is StudioReaderState.Inventorying or StudioReaderState.Stopping)
+                    {
+                        await fleet.StopInventoryAsync(reader.Id, CancellationToken.None);
+                    }
 
-                status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
-                if (status.State is not StudioReaderState.Disconnected)
+                    status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
+                    if (status.State is not StudioReaderState.Disconnected)
+                    {
+                        await fleet.DisconnectAsync(reader.Id, CancellationToken.None);
+                    }
+                }
+                catch (Exception ex)
                 {
-                    await fleet.DisconnectAsync(reader.Id, CancellationToken.None);
+                    collected.Add(ex);
                 }
             }
-            catch (Exception ex)
-            {
-                errors.Add(ex);
-            }
-        }
+
+            return collected;
+        }).ConfigureAwait(true);
+
+        // Stop the reader(s) BEFORE flipping IsInventoryRunning off: reports arriving between the
+        // stop and the stopwatch/timer teardown are real reads the user expects to see; stopping the
+        // timer first would drop them (EnqueueTag discards while IsInventoryRunning is false).
+        InventoryVM.StopTimer();
 
         StatusMessage = errors.Count == 0
             ? "Stopped inventory and disconnected all readers."
@@ -408,10 +537,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
-        PostToUi(() =>
-        {
-            InventoryVM.OnTagObserved(args.Aggregate);
-        });
+        // Do not hop to the UI thread per report: the SDK/message-pump thread only enqueues here
+        // (O(1)) and InventoryViewModel drains the queue in batches on its UI timer. Per-report
+        // InvokeAsync calls are what flooded the dispatcher under high-frequency reports.
+        InventoryVM.EnqueueTag(args.Aggregate);
     }
 
     private void PostToUi(Action action)
@@ -508,7 +637,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
                     await fleet.ConnectAsync(reader.Id, CancellationToken.None);
                 }
 
-                await StartReaderInventoryAsync(reader);
+                await StartReaderInventoryAsync(reader.Id, CancellationToken.None);
                 StatusMessage = $"Enabled reader '{reader.Name}' for the active inventory.";
             }
             else if (!reader.IsEnabled)
@@ -554,16 +683,59 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         fleet.ClearTags();
     }
 
-    private async Task StartReaderInventoryAsync(ReaderItemViewModel reader)
+    private async void OnReaderUnavailableRetryRequested()
     {
-        InventorySettings settings = await ResolveInventorySettingsForStartAsync(reader);
-        settings = InventoryVM.ApplyReportOptions(settings);
-        await fleet.StartInventoryAsync(reader.Id, settings, CancellationToken.None);
+        if (isDisposing || SelectedReader is not ReaderItemViewModel reader)
+        {
+            return;
+        }
+
+        // Guard against the IsEnabled change below re-entering OnReaderItemPropertyChanged (which
+        // would start its own connect and could roll back IsEnabled on failure). Holding the toggle
+        // slot makes that handler bail out immediately.
+        if (!readerToggleOperations.Add(reader.Id))
+        {
+            return;
+        }
+
+        try
+        {
+            ReaderUnavailableVM.Show(reader.Name, "Connecting and syncing configuration...");
+            await fleet.ConnectAsync(reader.Id, CancellationToken.None);
+            ReaderStatus status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
+            ReaderSettingsSnapshot snapshot = await fleet.QuerySettingsAsync(reader.Id, CancellationToken.None);
+            await inventoryPresets.SaveDefaultAsync(reader.Id, snapshot.Settings, CancellationToken.None);
+            await fleet.DisconnectAsync(reader.Id, CancellationToken.None);
+
+            reader.ConfigSynced = true;
+            reader.IsEnabled = true;
+            await readerProfiles.SetEnabledAsync(reader.Id, true, CancellationToken.None);
+            await readerProfiles.UpdateStatusAsync(reader.Id, DateTime.UtcNow, status.Model, status.Firmware, null, CancellationToken.None);
+
+            await DataSourceSettingsVM.LoadCachedSettingsAsync(reader, CancellationToken.None);
+            CurrentPage = DataSourceSettingsVM;
+        }
+        catch (Exception ex)
+        {
+            ReaderUnavailableVM.Show(reader.Name, ex.Message);
+            StatusMessage = $"Retry failed for '{reader.Name}': {ex.Message}";
+        }
+        finally
+        {
+            readerToggleOperations.Remove(reader.Id);
+        }
     }
 
-    private async Task<InventorySettings> ResolveInventorySettingsForStartAsync(ReaderItemViewModel reader)
+    private async Task StartReaderInventoryAsync(Guid readerId, CancellationToken cancellationToken)
     {
-        ReaderSettings? saved = await inventoryPresets.LoadDefaultAsync(reader.Id, CancellationToken.None);
+        InventorySettings settings = await ResolveInventorySettingsForStartAsync(readerId, cancellationToken);
+        settings = InventoryVM.ApplyReportOptions(settings);
+        await fleet.StartInventoryAsync(readerId, settings, cancellationToken);
+    }
+
+    private async Task<InventorySettings> ResolveInventorySettingsForStartAsync(Guid readerId, CancellationToken cancellationToken)
+    {
+        ReaderSettings? saved = await inventoryPresets.LoadDefaultAsync(readerId, cancellationToken);
         if (saved?.Inventory is { } inventory)
         {
             return inventory;
@@ -571,7 +743,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         try
         {
-            ReaderSettingsSnapshot snapshot = await fleet.QuerySettingsAsync(reader.Id, CancellationToken.None);
+            ReaderSettingsSnapshot snapshot = await fleet.QuerySettingsAsync(readerId, cancellationToken);
             return snapshot.ManagedRoSpec?.Inventory
                 ?? snapshot.Settings.Inventory
                 ?? new InventorySettings();
@@ -609,6 +781,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         AddDataSourceVM.DataSourceSubmitted -= OnAddDataSourceSubmitted;
         AddDataSourceVM.CancelRequested -= OnCancelToInventoryRequested;
         DataSourceSettingsVM.CancelRequested -= OnCancelToInventoryRequested;
+        ReaderUnavailableVM.RetryRequested -= OnReaderUnavailableRetryRequested;
         foreach (ReaderItemViewModel reader in Readers)
         {
             reader.PropertyChanged -= OnReaderItemPropertyChanged;

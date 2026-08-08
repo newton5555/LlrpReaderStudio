@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using LlrpSdk;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,15 +19,33 @@ public sealed class FleetTagObservedEventArgs(ReaderProfile profile, TagReport r
 
 public sealed class ReaderFleetService : IAsyncDisposable
 {
+    /// <summary>
+    /// Bounded cap for the tag-report hand-off channel. The SDK message-pump thread only writes to
+    /// this channel (O(1), non-blocking); aggregation + the TagObserved event run on a background
+    /// consumer task. If a report storm outpaces the consumer, writes are refused (and counted) rather
+    /// than stalling the pump (which would delay KEEPALIVE_ACKs and look like a dead UI).
+    /// </summary>
+    private const int TagChannelCapacity = 100_000;
+
     private readonly IReaderSessionFactory sessionFactory;
     private readonly ILogger<ReaderFleetService> logger;
     private readonly Dictionary<Guid, ManagedReader> readers = [];
     private readonly TagAggregateStore aggregates = new();
+    private readonly Channel<TagWorkItem> tagChannel;
+    private readonly Task tagConsumer;
+    private long tagsDropped;
 
     public ReaderFleetService(IReaderSessionFactory? sessionFactory = null, ILogger<ReaderFleetService>? logger = null)
     {
         this.sessionFactory = sessionFactory ?? new LlrpReaderSessionFactory(NullLoggerFactory.Instance);
         this.logger = logger ?? NullLogger<ReaderFleetService>.Instance;
+        tagChannel = Channel.CreateBounded<TagWorkItem>(new BoundedChannelOptions(TagChannelCapacity)
+        {
+            FullMode = BoundedChannelFullMode.DropWrite,
+            SingleReader = true,
+            SingleWriter = false,
+        });
+        tagConsumer = Task.Run(ConsumeTagReportsAsync);
     }
 
     public event EventHandler<ReaderStatusChangedEventArgs>? ReaderStatusChanged;
@@ -192,6 +211,9 @@ public sealed class ReaderFleetService : IAsyncDisposable
 
     public void ClearTags() => aggregates.Clear();
 
+    /// <summary>Number of tag reports dropped because the consumer could not keep up with the pump.</summary>
+    public long TagsDropped => Interlocked.Read(ref tagsDropped);
+
     public async ValueTask DisposeAsync()
     {
         foreach (ManagedReader managed in readers.Values.ToArray())
@@ -222,6 +244,17 @@ public sealed class ReaderFleetService : IAsyncDisposable
         }
 
         readers.Clear();
+
+        // Stop the consumer and let it drain anything already queued before the pump stopped.
+        tagChannel.Writer.TryComplete();
+        try
+        {
+            await tagConsumer.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Consumer was shut down with the fleet; nothing left to drain.
+        }
     }
 
     private async Task RunAsync(
@@ -291,6 +324,42 @@ public sealed class ReaderFleetService : IAsyncDisposable
 
     private void OnTagReported(ManagedReader managed, TagReport report)
     {
+        // Runs on the SDK message-pump thread: only hand off to the consumer (O(1), non-blocking).
+        // Aggregation and the TagObserved event never run on the pump, so a report flood cannot
+        // stall KEEPALIVE_ACK handling on that thread. If the consumer lags, TryWrite is refused
+        // (and counted) so the pump never blocks.
+        if (!tagChannel.Writer.TryWrite(new TagWorkItem(managed, report)))
+        {
+            long dropped = Interlocked.Increment(ref tagsDropped);
+            logger.LogWarning("Tag report dropped (consumer saturated); total dropped so far: {Dropped}", dropped);
+        }
+    }
+
+    private async Task ConsumeTagReportsAsync()
+    {
+        try
+        {
+            await foreach (TagWorkItem item in tagChannel.Reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))
+            {
+                try
+                {
+                    OnTagProcessed(item.Managed, item.Report);
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(exception, "Failed to aggregate a tag report for reader {Name}.",
+                        item.Managed.Status.Profile.Name);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Fleet disposal completed the channel; the loop is done.
+        }
+    }
+
+    private void OnTagProcessed(ManagedReader managed, TagReport report)
+    {
         TagObservation aggregate = aggregates.Add(managed.Status.Profile, report);
         TagObserved?.Invoke(this, new FleetTagObservedEventArgs(managed.Status.Profile, report, aggregate));
     }
@@ -330,4 +399,6 @@ public sealed class ReaderFleetService : IAsyncDisposable
         public ReaderStatus Status { get; set; } =
             new(profile, StudioReaderState.Disconnected, null, null, null);
     }
+
+    private readonly record struct TagWorkItem(ManagedReader Managed, TagReport Report);
 }

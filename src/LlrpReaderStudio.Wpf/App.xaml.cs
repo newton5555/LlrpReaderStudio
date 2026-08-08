@@ -116,6 +116,7 @@ public partial class App : Application
         services.AddSingleton<InventoryViewModel>();
         services.AddTransient<AddDataSourceViewModel>();
         services.AddTransient<DataSourceSettingsViewModel>();
+        services.AddTransient<ReaderUnavailableViewModel>();
         services.AddTransient<TagMemoryViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AboutViewModel>();

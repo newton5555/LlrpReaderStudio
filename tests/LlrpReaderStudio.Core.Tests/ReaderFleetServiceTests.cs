@@ -60,9 +60,29 @@ public sealed class ReaderFleetServiceTests
             4,
             null));
 
+        // Aggregation now runs on a background consumer task (the pump thread only hands the report
+        // off), so the event is published asynchronously; wait for it within the test timeout.
+        await WaitUntilAsync(() => observed is not null);
+
         Assert.NotNull(observed);
         Assert.Equal("300833B2", observed.Aggregate.Epc);
         Assert.Equal(4, observed.Aggregate.ReadCount);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 2000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await Task.Delay(10);
+        }
+
+        throw new TimeoutException("Timed out waiting for condition.");
     }
 
     [Fact]

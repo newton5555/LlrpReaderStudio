@@ -44,11 +44,6 @@
                     <TextBlock Text="ELAPSED TIME: " FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <TextBlock Text="{Binding ElapsedTimeText}" FontSize="36" FontFamily="Consolas, Courier New" FontWeight="Bold" VerticalAlignment="Center" />
                 </StackPanel>
-
-                <!-- Quick Clear Tags -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Clear Tags" Command="{Binding ClearTagsCommand}" Padding="14,6" Margin="0,0,8,0" />
-                </StackPanel>
             </Grid>
         </Border>
 
