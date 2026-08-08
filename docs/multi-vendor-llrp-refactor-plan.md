@@ -63,6 +63,18 @@ WPF、MVVM、DI、SQLite、Inventory、Tag Memory 和现有 Impinj 功能可以�
 - MainViewModel 仍承担过多业务职责；
 - 设置页、Preset、Tag 聚合仍直接依赖 Impinj。
 
+### 3.1 经验记录：Impinj + 标准 LLRP 1.0.1（供未来新框架参考）
+
+此前的实战已确认**当前应用同时支持 Impinj 设备与标准 LLRP 1.0.1 设备**，可作为未来多厂商框架的已知经验沉淀：
+
+- **LLRP 协议版本策略已打通全链**：`ReaderProfile.LlrpVersion`（Auto / Force101 / Force11），新增数据源时在 UI 下拉选择，持久化到 SQLite（旧库自动补列），连接时经 `WithProtocolVersionPolicy` 映射到 SDK。标准 1.0.1 设备默认 Auto 会"探测 1.1 被拒后回落 1.0.1"，可正常连接。
+- **Impinj 专属设置已在标准设备下禁用/隐藏**：`ImpinjExtensionsAvailable` 依据设备是否上报 `impinj.configuration` 扩展判定；FastID / Phase / Doppler / Search Mode / 定频 / Low Duty Cycle / GPI debounce 等 Impinj 控件在标准设备下置灰或隐藏，标准 LLRP 通用功能（GPI/GPO）保持可用。
+- **Capabilities 用内存缓存承载**：`ReaderCapabilities`（RF mode / Tx/Rx / 频率表）无法持久化到 SQLite，只能连接时获取。做法是在启动同步、新增设备、连接/REFRESH 时把 caps 存进对应 reader 的 `DataSourceSettingsViewModel` 内存字段，读缓存页也能据此填下拉，无需每次重连。
+- **短连接（用完即断）为当前方向**：启动同步 connect→读配置/能力→写缓存后断开；SAVE/REFRESH/Defaults/GPO 设置操作同样用完即断；仅寻卡运行时保持连接。多设备切换时每个 reader 持有独立的设置 VM，状态互不串。
+- **Tag 上报经 Core 有界 Channel 后台消费**：泵线程只 O(1) 入队，聚合在后台任务，UI 定时器批量 drain + 去重，避免报告风暴卡死。
+
+可供未来框架借鉴的要点：独立的协议版本策略、能力驱动的厂商设置门控、Capabilities 内存缓存、短连接 + 按需重连、per-reader ViewModel 隔离。
+
 ## 4. 核心设计决策
 
 ### 4.1 标准 LLRP 为基础，厂商功能为扩展
@@ -85,12 +97,12 @@ Core 不应再直接依赖 Impinj 类型；Impinj 类型只能存在于 Impinj �
 
 根据当前需求，定义：
 
-> `Enable=true` 表示应用应自动激活该 Reader，并保持可用于设置查询和盘存的 LLRP Session；`Enable=false` 表示断开且不参与操作。
+> `Enable=true` 表示应用应自动激活该 Reader（启动时同步身份、能力与配置到本地缓存）；`Enable=false` 表示不参与操作。
 
 具体规则：
 
 - 软件启动：自动激活所有启用设备；
-- 激活成功：读取身份、能力和当前设置，更新 UI；
+- 激活成功：连接读取身份、能力和当前设置，写入本地缓存后**断开**（短连接，按需重连）；
 - 激活失败：自动设置并持久化 `Enable=false`；
 - 用户打开 Enable：重新执行激活；
 - 用户关闭 Enable：停止该设备上的活动操作并断开；
@@ -373,7 +385,8 @@ flowchart TD
   -> 对 IsEnabled=true 的设备逐台或限并发 ActivateAsync
   -> Connect
   -> Query Identity / Capabilities / Settings
-  -> 发布 ReaderRuntimeSnapshot
+  -> 写入本地缓存
+  -> 断开（短连接，按需重连）
   -> 更新 UI
 ```
 

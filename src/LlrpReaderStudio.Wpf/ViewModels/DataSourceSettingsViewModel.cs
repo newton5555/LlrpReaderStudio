@@ -18,6 +18,10 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
     private ReaderSettings? settingsDraft = new();
     private bool suppressGpoUpdate;
     private int gpoOperationsInFlight;
+
+    /// <summary>Last capabilities synced from the device; retained in memory so options (RF mode,
+    /// Tx/Rx, frequency) survive a disconnect and can populate the cache-loaded settings page.</summary>
+    private ReaderCapabilities? capabilities;
     private readonly Dictionary<string, ushort> txPowerIndexesByDisplay = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ushort> rxSensitivityIndexesByDisplay = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<ushort, string> txPowerDisplaysByIndex = [];
@@ -275,6 +279,12 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             {
                 settingsDraft = saved;
                 ApplySettingsToUi(settingsDraft);
+                // If capabilities were synced earlier (startup/sync), repopulate the capability
+                // dropdowns for the cached page without needing a live connection.
+                if (capabilities is not null)
+                {
+                    RefreshOptions(capabilities);
+                }
                 SettingsOrigin = $"Cached preset ({DateTime.Now:HH:mm:ss})";
                 StatusMessage = $"{reader.Name}: Showing last saved settings; REFRESH SETTINGS for live data.";
             }
@@ -931,7 +941,7 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
             return;
         }
 
-        RefreshOptions(capabilities);
+        ApplyCapabilities(capabilities);
     }
 
     /// <summary>
@@ -954,6 +964,17 @@ public partial class DataSourceSettingsViewModel : PageViewModelBase
         {
             // Best effort; the reader stays connected if the state could not be determined.
         }
+    }
+
+    /// <summary>
+    /// Records capabilities retrieved from the device (from a connect path / startup sync) and
+    /// rebuilds the capability-derived dropdown options. The value is kept in memory so a later
+    /// cache-loaded settings page can still populate RF mode / Tx/Rx / frequency without reconnecting.
+    /// </summary>
+    public void ApplyCapabilities(ReaderCapabilities capabilities)
+    {
+        this.capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
+        RefreshOptions(capabilities);
     }
 
     private void RefreshOptions(ReaderCapabilities capabilities)

@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     private readonly InventoryPresetRepository inventoryPresets;
     private readonly ILogger<MainViewModel> logger;
     private readonly Dictionary<Guid, ReaderItemViewModel> readerIndex = [];
+    private readonly Dictionary<Guid, DataSourceSettingsViewModel> settingsVms = [];
     private readonly HashSet<Guid> readerToggleOperations = [];
     private bool isDisposing;
     private Task? disposeTask;
@@ -52,7 +53,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         InventoryPresetRepository inventoryPresets,
         InventoryViewModel inventoryViewModel,
         AddDataSourceViewModel addDataSourceViewModel,
-        DataSourceSettingsViewModel dataSourceSettingsViewModel,
         ReaderUnavailableViewModel readerUnavailableViewModel,
         TagMemoryViewModel tagMemoryViewModel,
         SettingsViewModel settingsViewModel,
@@ -65,7 +65,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         this.logger = logger ?? NullLogger<MainViewModel>.Instance;
         InventoryVM = inventoryViewModel;
         AddDataSourceVM = addDataSourceViewModel;
-        DataSourceSettingsVM = dataSourceSettingsViewModel;
         ReaderUnavailableVM = readerUnavailableViewModel;
         TagMemoryVM = tagMemoryViewModel;
         SettingsVM = settingsViewModel;
@@ -91,13 +90,11 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         InventoryVM.ClearTagsRequested += OnClearTagsRequested;
         AddDataSourceVM.DataSourceSubmitted += OnAddDataSourceSubmitted;
         AddDataSourceVM.CancelRequested += OnCancelToInventoryRequested;
-        DataSourceSettingsVM.CancelRequested += OnCancelToInventoryRequested;
         ReaderUnavailableVM.RetryRequested += OnReaderUnavailableRetryRequested;
     }
 
     public InventoryViewModel InventoryVM { get; }
     public AddDataSourceViewModel AddDataSourceVM { get; }
-    public DataSourceSettingsViewModel DataSourceSettingsVM { get; }
     public ReaderUnavailableViewModel ReaderUnavailableVM { get; }
     public TagMemoryViewModel TagMemoryVM { get; }
     public SettingsViewModel SettingsVM { get; }
@@ -105,6 +102,22 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     public ObservableCollection<NavigationItem> NavigationItems { get; } = [];
     public ObservableCollection<ReaderItemViewModel> Readers { get; } = [];
+
+    /// <summary>
+    /// Returns (creating on first use) the per-reader settings view-model. Each data source keeps
+    /// its own instance so switching readers never mixes configuration state between devices.
+    /// </summary>
+    private DataSourceSettingsViewModel SettingsFor(Guid readerId)
+    {
+        if (!settingsVms.TryGetValue(readerId, out DataSourceSettingsViewModel? vm))
+        {
+            vm = new DataSourceSettingsViewModel(fleet, inventoryPresets);
+            vm.CancelRequested += OnCancelToInventoryRequested;
+            settingsVms[readerId] = vm;
+        }
+
+        return vm;
+    }
 
     public async Task LoadSavedDataSourcesAsync()
     {
@@ -154,6 +167,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
                     await fleet.ConnectAsync(reader.Id, CancellationToken.None);
                     ReaderStatus status = fleet.Readers.First(current => current.Profile.Id == reader.Id);
 
+                    // Retain the reader's capabilities in its per-reader settings VM so the cache-loaded
+                    // page can populate RF mode / Tx/Rx / frequency dropdowns without a live connection.
+                    if (fleet.GetCapabilities(reader.Id) is { } caps)
+                    {
+                        SettingsFor(reader.Id).ApplyCapabilities(caps);
+                    }
+
                     // Sync the reader's current configuration to the local cache, then drop the
                     // connection (short-lived probe session, like the reference tool): later pages read
                     // the cache instead of holding a connection open. Reads/saves (SAVE/REFRESH) and
@@ -171,8 +191,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
                     if (ReferenceEquals(SelectedReader, reader) &&
                         CurrentPage is DataSourceSettingsViewModel or ReaderUnavailableViewModel)
                     {
-                        await DataSourceSettingsVM.LoadCachedSettingsAsync(reader, CancellationToken.None);
-                        CurrentPage = DataSourceSettingsVM;
+                        DataSourceSettingsViewModel vm = SettingsFor(reader.Id);
+                        await vm.LoadCachedSettingsAsync(reader, CancellationToken.None);
+                        CurrentPage = vm;
                     }
                 }
                 catch (Exception ex)
@@ -229,16 +250,15 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         // Selecting a reader never implicitly connects. When its configuration was synced to the
         // cache at startup, the settings page shows those cached values; otherwise the "unavailable"
         // placeholder (with Retry) is shown instead of a half-empty settings page.
-        DataSourceSettingsVM.SetSelectedReader(value);
-
         if (value is null)
         {
             return;
         }
 
-        CurrentPage = value.ConfigSynced
-            ? DataSourceSettingsVM
-            : ShowReaderUnavailable(value);
+        DataSourceSettingsViewModel vm = SettingsFor(value.Id);
+        vm.SetSelectedReader(value);
+
+        CurrentPage = value.ConfigSynced ? vm : ShowReaderUnavailable(value);
     }
 
     [RelayCommand]
@@ -248,7 +268,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             "Inventory" => InventoryVM,
             "AddDataSource" => AddDataSourceVM,
-            "DataSourceSettings" => DataSourceSettingsVM,
+            "DataSourceSettings" => SelectedReader is { } sr ? SettingsFor(sr.Id) : CurrentPage,
             "TagMemory" => TagMemoryVM,
             "Settings" => SettingsVM,
             "About" => AboutVM,
@@ -279,8 +299,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         // Startup already synced the reader's configuration to the local cache, so opening the
         // settings page is instant and offline. REFRESH SETTINGS re-queries the device on demand.
-        await DataSourceSettingsVM.LoadCachedSettingsAsync(reader, CancellationToken.None);
-        CurrentPage = DataSourceSettingsVM;
+        DataSourceSettingsViewModel vm = SettingsFor(reader.Id);
+        await vm.LoadCachedSettingsAsync(reader, CancellationToken.None);
+        CurrentPage = vm;
     }
 
     private PageViewModelBase ShowReaderUnavailable(ReaderItemViewModel reader)
@@ -311,9 +332,19 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         await readerProfiles.DeleteAsync(reader.Id, CancellationToken.None);
         reader.PropertyChanged -= OnReaderItemPropertyChanged;
         readerIndex.Remove(reader.Id);
+        if (settingsVms.Remove(reader.Id, out DataSourceSettingsViewModel? removedVm))
+        {
+            removedVm.CancelRequested -= OnCancelToInventoryRequested;
+        }
         Readers.Remove(reader);
         SyncOperationReaders();
         SelectedReader = Readers.FirstOrDefault();
+        // If the settings page was showing the reader just removed (e.g. the last one), fall back to
+        // Inventory instead of leaving the editor bound to a reader that no longer exists.
+        if (ReferenceEquals(CurrentPage, removedVm))
+        {
+            CurrentPage = InventoryVM;
+        }
         StatusMessage = $"Removed data source '{reader.Name}'.";
     }
 
@@ -342,10 +373,23 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             Readers.Add(item);
             SyncOperationReaders();
 
+            // Connect and load the reader's current configuration + capabilities into its per-reader VM so
+            // the settings page (opened below) shows real values immediately, not just after REFRESH.
+            DataSourceSettingsViewModel settingsVm = SettingsFor(item.Id);
+            try
+            {
+                await settingsVm.InitializeForReaderAsync(item, CancellationToken.None);
+            }
+            catch
+            {
+                // Best-effort load; the settings page still opens and a later REFRESH SETTINGS will
+                // reconnect and populate values.
+            }
+
             // Selecting the reader updates the settings page from the probe result; it does not
             // connect again (selecting never implicitly connects).
-            DataSourceSettingsVM.SetSelectedReader(item);
-            CurrentPage = DataSourceSettingsVM;
+            settingsVm.SetSelectedReader(item);
+            CurrentPage = settingsVm;
             StatusMessage = $"Added data source '{profile.Name}' ({profile.Host}); connection verified"
                 + (probe.Model is null ? "." : $" ({probe.Model}).");
         }
@@ -517,7 +561,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
                 item.Update(args.Status);
                 if (SelectedReader == item)
                 {
-                    DataSourceSettingsVM.SetSelectedReader(item);
+                    SettingsFor(item.Id).SetSelectedReader(item);
                 }
             }
         });
@@ -712,8 +756,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             await readerProfiles.SetEnabledAsync(reader.Id, true, CancellationToken.None);
             await readerProfiles.UpdateStatusAsync(reader.Id, DateTime.UtcNow, status.Model, status.Firmware, null, CancellationToken.None);
 
-            await DataSourceSettingsVM.LoadCachedSettingsAsync(reader, CancellationToken.None);
-            CurrentPage = DataSourceSettingsVM;
+            DataSourceSettingsViewModel vm = SettingsFor(reader.Id);
+            await vm.LoadCachedSettingsAsync(reader, CancellationToken.None);
+            CurrentPage = vm;
         }
         catch (Exception ex)
         {
@@ -780,7 +825,11 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         InventoryVM.ClearTagsRequested -= OnClearTagsRequested;
         AddDataSourceVM.DataSourceSubmitted -= OnAddDataSourceSubmitted;
         AddDataSourceVM.CancelRequested -= OnCancelToInventoryRequested;
-        DataSourceSettingsVM.CancelRequested -= OnCancelToInventoryRequested;
+        foreach (DataSourceSettingsViewModel vm in settingsVms.Values)
+        {
+            vm.CancelRequested -= OnCancelToInventoryRequested;
+        }
+        settingsVms.Clear();
         ReaderUnavailableVM.RetryRequested -= OnReaderUnavailableRetryRequested;
         foreach (ReaderItemViewModel reader in Readers)
         {
