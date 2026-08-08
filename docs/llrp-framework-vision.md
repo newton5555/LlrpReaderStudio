@@ -1,14 +1,14 @@
-# LLRP Framework 新框架项目规划
+# LLRP 应用服务层新项目规划（UI 无关服务库）
 
 > 状态：规划稿（2026-08）
-> 背景：`LlrpReaderStudio` 为一次性 demo / 测试软件，后续不维护。本规划定义正式的多厂商 LLRP 应用框架库。
+> 背景：`LlrpReaderStudio` 为一次性 demo / 测试软件，后续不维护。本规划定义正式的多厂商 LLRP 应用服务层（UI 无关类库）。
 
 ## 0. 目标与定位
 
-- 新建一个**厂商无关的 LLRP 应用框架库**，作为正式产品长期维护；
+- 新建一个**厂商无关的 LLRP 应用服务层（UI 无关类库）**，作为正式产品长期维护；
 - 依赖底层 `LlrpSdk`（标准 LLRP 核心 + 厂商扩展架构），**不重造协议层**；
-- 框架库**不直接依赖** `LlrpSdk.Extensions.Impinj/.Seuic`，厂商能力通过扩展模块接入；
-- 未来 UI（WPF/Maui/控制台）作为独立消费者引用框架库，与框架分离。
+- 服务层**不直接依赖** `LlrpSdk.Extensions.Impinj/.Seuic`，厂商能力通过扩展模块接入；
+- 未来 UI（WPF/Maui/控制台）作为独立消费者引用服务层，与服务层分离。
 
 ## 1. 关键前提（已核实）
 
@@ -23,19 +23,24 @@
 
 ```
 LLRP.Framework.slnx（新仓库）
-├── LlrpReaderFramework/                  ★ 厂商无关应用框架库（正式产品）
+├── LlrpReaderStudio.Services/            ★ 薄应用服务层（UI 无关类库，正式产品）
+│     定位：给任何 UI 框架（WPF/Maui/控制台）复用的设备管理服务；
+│           只封装 SDK 没有的能力，不碰 UI、不依赖 UseWPF
 │     依赖: LlrpSdk (PackageReference) + LlrpSdk.Extensions.Abstractions
 │     ├── Lifecycle/      Reader 注册 / 激活 / 短连接 / Enable 语义
 │     ├── Settings/       能力驱动设置模型（ReaderFeatureCatalog / EffectiveSettingsLayout）
 │     ├── Inventory/      标准 Inventory / TagReport / TagAccess 协调层
 │     ├── Capabilities/   ReaderCapabilities 内存缓存（不从 DB 持久化）
 │     └── Modules/        IVendorExtensionModule 抽象（不直接依赖厂商包）
-├── LlrpReaderFramework.Demo.Wpf/        新 UI 演示应用（引用框架库，可弃/换）
-├── LlrpReaderFramework.Tests/           xunit + LlrpVirtualReader（虚拟 reader 测试）
-└── (可选) LlrpReaderFramework.Extensions.Impinj/    Impinj 扩展模块（从框架库外置）
+├── LlrpReaderStudio.App.Wpf/            新 UI 应用（WPF，引用服务层，可换其他 UI 框架）
+├── LlrpReaderStudio.Services.Tests/     xunit + LlrpVirtualReader（虚拟 reader 测试）
+└── (可选) LlrpReaderStudio.Extensions.Impinj/   Impinj 扩展模块（服务层外置）
 ```
 
-**设计铁律**：框架库只依赖 `LlrpSdk` + `LlrpSdk.Extensions.Abstractions`；厂商能力通过注册 `IVendorExtensionModule` 加载，杜绝 demo 中"Core 直接 using Impinj"的病。
+**设计铁律**：
+- 服务层**只依赖 `LlrpSdk` + `LlrpSdk.Extensions.Abstractions`**，不依赖任何 UI 框架（`netstandard`/`net10.0`，无 `UseWPF`）；
+- 服务层**不直接依赖** `LlrpSdk.Extensions.Impinj/.Seuic`，厂商能力通过注册 `IVendorExtensionModule` 加载，杜绝 demo 中"Core 直接 using Impinj"的病；
+- UI 应用（WPF 或未来其他框架）只负责展示与交互，设备生命周期/能力聚合/设置编译全部在服务层。
 
 ## 3. 模块职责与核心 API 草案
 
@@ -92,7 +97,7 @@ public sealed class SettingsCompiler
 }
 ```
 
-- 标准 LLRP 设置为框架核心；Impinj Search Mode / FastID / Phase / Doppler / 定频 / Low Duty / GPI debounce 等由扩展模块贡献；
+- 标准 LLRP 设置为服务层核心；Impinj Search Mode / FastID / Phase / Doppler / 定频 / Low Duty / GPI debounce 等由扩展模块贡献；
 - 未知厂商设备：只显示标准设置（L1/L2/L3 按能力），不出现厂商项。
 
 ### 3.4 Modules —— 厂商扩展模块抽象
@@ -109,8 +114,8 @@ public interface IVendorExtensionModule
 }
 ```
 
-- `LlrpReaderFramework.Extensions.Impinj`（独立项目）实现 Impinj 模块；
-- 未来 Seuic/其他厂商新增独立模块，不改框架核心。
+- `LlrpReaderStudio.Extensions.Impinj`（独立项目）实现 Impinj 模块；
+- 未来 Seuic/其他厂商新增独立模块，不改服务层核心。
 
 ### 3.5 Inventory / TagReport / TagAccess
 
@@ -136,7 +141,7 @@ public interface IVendorExtensionModule
 ## 5. 分阶段实施计划
 
 ### F1：骨架与依赖验证（0.5~1 人日）
-- 建 `LLRP.Framework.slnx` + 空框架库 + 空测试；
+- 建 `LLRP.Framework.slnx` + 空服务层类库 + 空测试；
 - `PackageReference LlrpSdk`，验证独立于 demo/LLRPCSharp 源码可构建；
 - **风险点**：`LlrpSdk.Extensions.Abstractions` 是否有 NuGet 包？若没有，需临时 ProjectReference 或本地 feed（见 §7）。
 
@@ -154,11 +159,11 @@ public interface IVendorExtensionModule
 - 标准盘存、TagReport 有界 Channel 聚合、TagAccess、GPI/GPO。
 
 ### F5：Impinj 扩展模块（3~4 人日）
-- `LlrpReaderFramework.Extensions.Impinj` 独立项目；
+- `LlrpReaderStudio.Extensions.Impinj` 独立项目；
 - 迁移 Search Mode/FastID/Phase/Doppler/定频/Low Duty/GPI debounce/Preset/TagReport 投影。
 
 ### F6：UI Demo + 测试（2~3 人日）
-- `Demo.Wpf` 引用框架库，展示能力驱动设置；
+- `App.Wpf` 引用服务层，展示能力驱动设置；
 - 测试：`LlrpVirtualReader` 虚拟 reader + xunit。
 
 ## 6. 验收标准
@@ -166,19 +171,19 @@ public interface IVendorExtensionModule
 - 至少一台 Impinj 和一台标准 LLRP 1.0.1 设备可分别及同时运行；
 - 未知厂商设备：连接、显示身份/能力、标准盘存，不出现 Impinj 参数；
 - 能力驱动 UI：不同能力快照生成不同设置布局，无法选择/发送不支持参数；
-- demo 与框架解耦：换 UI 不改框架。
+- 服务层与 UI 解耦：换 UI 不改服务层。
 
 ## 7. 风险与对策
 
 | 风险 | 对策 |
 |---|---|
 | `LlrpSdk.Extensions.Abstractions` 无 NuGet 包 | F1 先验证；若无，用本地 feed / ProjectReference 临时引用，或向 SDK 仓库推动发版 |
-| Seuic 等厂商扩展未发 NuGet | 框架不依赖它们，按需加载；缺失则跳过该厂商能力 |
+| Seuic 等厂商扩展未发 NuGet | 服务层不依赖它们，按需加载；缺失则跳过该厂商能力 |
 | 标准 LLRP 设备实机差异大（不同厂商实现偏差） | 用 L1~L4 能力分级 + 实测矩阵（demo 已验证 1.0.1 基本链路） |
 | 重构 Scope 膨胀 | 按 F1~F6 分批，每阶段有独立验收，不一次铺开 |
 
 ## 8. 文档关系
 
-- 本规划为**新框架项目**的总体方案；
+- 本规划为**新服务层项目**的总体方案；
 - `docs/multi-vendor-llrp-refactor-plan.md` 中的 P1~P6 可作为本规划的技术细节参考（P3 能力驱动设置、P4 模块化直接对应 F3/F5）；
 - 经验沉淀见该文档 §3.1。
